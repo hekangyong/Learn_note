@@ -32,3 +32,52 @@ HTTP协议工作于客户端-服务器架构上，浏览器作为HTTP客户端�
 7.  HTTP请求报文：请求行+请求头+请求体；
 
 ![haode](./images/13263206-dde2fc0423a9f861.webp)
+
+### 3.组成一：请求行
+1.  作用：声明请求方法、主机域名、资源路径和协议版本；
+2.  结构：请求行的组成：请求方法+请求路径+协议版本；**注意：空格不能省略**
+
+![haode](./images/13263206-bd2710e3b5c882b4.png )
+
+请求介绍：
+
+![haode](./images/13263206-051b254be6bfc958.png)
+
+get和post的区别：
+
+![haode](./images/13263206-8f5448afb45fbddd.png)
+
+举例：设请求报文采用GET方法，URL地址：
+http://www.tsinghua.edu.cn/chn/yxsz/index.htm, HTTP1.1版本
+则 请求行为：
+GET /chn/yxsz/index.htm HTTP/1.1
+
+### 4.组成二：请求头
+
+1.  作用：声明客户端，服务器/报文的部分信息；
+2.  使用方法： 采用“header（字段名）: value（值）”的方式
+3.  常用请求头：
+    1.  请求和响应报文通用Header。
+
+|名称|作用|
+|-|-|
+|Contect-type|请求体/响应体，如: text/plain, application/json|
+|Accept|说明接受的类型， 可以多个值，用 `,` (半角逗号)分开|
+|Content-Length|请求体/响应体的长度，单位字节|
+|Content-Encoding|请求体/响应体的编码格式，如gzip,deflate|
+|Accept-Encoding|告知对方我方接受的Content-Encoding|
+|ETag|给当前资源的标识，和 `Last-Modified`, `If-None-Match`, `If-Modified-Since`配合，用于缓存控制|
+|Cache-Control|取值为一般为`no-cache`或`max-age=XX`,XX为个整数，表示资源缓存有效期(秒)|
+
+
+3.2.  常见的请求Header
+
+|名称|作用|
+|-|-|
+|Authorization|用于设置身份认证信息|
+|User-Agent|用户标识，如：OS和浏览器的类型和版本|
+|If-Modified-Since|值为上一次服务器返回的`Last-Modified`值，用于确认某个资源是否被更改过，没有更改过（304）就从缓存中读取|
+|If-None-Match|值为上一次服务器返回的ETag值，一般会和`If-Modified-Since`一起出现|
+|Cookie|已有的Cookie|
+|Referer|表示请求引用自哪个地址，比如你从页面A跳转到页面B时，值为A的地址|
+|Host|请求的主机和端口号|
