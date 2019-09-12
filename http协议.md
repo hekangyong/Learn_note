@@ -48,8 +48,11 @@ get和post的区别：
 ![haode](./images/13263206-8f5448afb45fbddd.png)
 
 举例：设请求报文采用GET方法，URL地址：
+
 http://www.tsinghua.edu.cn/chn/yxsz/index.htm, HTTP1.1版本
+
 则 请求行为：
+
 GET /chn/yxsz/index.htm HTTP/1.1
 
 ### 4.组成二：请求头
@@ -84,7 +87,9 @@ GET /chn/yxsz/index.htm HTTP/1.1
 
 3.3：应用举例：
 （URL地址：http://www.tsinghua.edu.cn/chn/yxsz/index.htm）
+
 Host: www.tsinghua.edu.cn (表示主机域名）
+
 User-Agent: Mozilla/5.0(表示用户代理是使用Netscape浏览器)
 
 ### 组成三：请求体
