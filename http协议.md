@@ -81,3 +81,17 @@ GET /chn/yxsz/index.htm HTTP/1.1
 |Cookie|已有的Cookie|
 |Referer|表示请求引用自哪个地址，比如你从页面A跳转到页面B时，值为A的地址|
 |Host|请求的主机和端口号|
+
+3.3：应用举例：
+（URL地址：http://www.tsinghua.edu.cn/chn/yxsz/index.htm）
+Host: www.tsinghua.edu.cn (表示主机域名）
+User-Agent: Mozilla/5.0(表示用户代理是使用Netscape浏览器)
+
+### 组成三：请求体
+1.  作用：存放需发送给服务器的数据信息；可选部分，如GET请求无请求数据；
+
+![haode](./images/13263206-6ecaa5f61c737071.png)
+
+总结：
+
+![haode](./images/13263206-896025cfc08bb955.webp)
