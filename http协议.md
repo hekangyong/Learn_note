@@ -100,3 +100,72 @@ User-Agent: Mozilla/5.0(表示用户代理是使用Netscape浏览器)
 总结：
 
 ![haode](./images/13263206-896025cfc08bb955.webp)
+
+### HTTP响应报文：状态行+响应头+响应体
+
+![haode](./images/13263206-af1aeca1688f4185.png)
+
+####  组成一：状态行
+
+1.  作用：声明协议版本、状态码、状态码描述。
+2.  组成：状态行、状态码和状态信息组成
+
+**注：空格不能省略**
+
+![HTTP响应报文](./images/13263206-306a87b4a1c29ea8.png)
+
+具体介绍：
+
+![响应报文具体介绍](./images/13263206-86782e498a1bf03d.png)
+
+状态行实例：
+`HTTP/1.1 202 Accepted(接受)、HTTP/1.1 404 Not Found(找不到)`
+
+#### 组成二：响应头
+
+1.  作用：声明客户端、服务器/报文的部分信息；
+2.  使用方式：采用“header(字段名):value(值)”的方式；
+3.  常用响应头：
+    1.请求和响应报文的通用header
+
+|名称|作用|
+|-|-|
+|Contect-type|请求体/响应体，如: text/plain, application/json|
+|Accept|说明接受的类型， 可以多个值，用 `,` (半角逗号)分开|
+|Content-Length|请求体/响应体的长度，单位字节|
+|Content-Encoding|请求体/响应体的编码格式，如gzip,deflate|
+|Accept-Encoding|告知对方我方接受的Content-Encoding|
+|ETag|给当前资源的标识，和 `Last-Modified`, `If-None-Match`, `If-Modified-Since`配合，用于缓存控制|
+|Cache-Control|取值为一般为`no-cache`或`max-age=XX`,XX为个整数，表示资源缓存有效期(秒)|
+
+![常见响应header](./images/13263206-cf8be3da08aa9742.png)
+
+####    组成三：响应体
+1.  作用：存放需返回给客户端的数据信息；
+2.  使用方式：和请求体是一致的，同样分为：任意类型的数据交换格式、键值对形式和分部分形式；
+
+![haode](./images/13263206-6ecaa5f61c737071.png)
+
+响应报文总结：
+
+![haode](./images/13263206-896025cfc08bb955.webp)
+
+##  三、HTTP和HTTPS的区别
+
+![http和https的区别](./images/13263206-9f3ce2ffd64a4df6.png)
+
+**HTTP：**
+是超文本传输协议，是进行的明文传输；
+HTTP的连接是无状态的，连接很简单
+HTTP连接的端口是80；
+HTTP不需要CA申请证书；
+
+**HTTPS：**
+是具有安全性的SSL加密传输协议；
+HTTPS协议是由SSL+HTTP协议构建的可进行加密传输、身份认证的网络协议，
+对比HTTP是更为的安全；
+HTTPS连接的端口是443；
+HTTPS需要CA申请证书，因为免费证书一般较少，苏一需要一定的费用；
+
+##  HTTP处理长连接的方法
+![http处理长连接的方法](./images/13263206-f5ff7097081e9faf.png)
