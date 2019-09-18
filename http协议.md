@@ -175,5 +175,5 @@ HTTPS协议是由SSL+HTTP协议构建的可进行加密传输、身份认证的�
 HTTPS连接的端口是443；
 HTTPS需要CA申请证书，因为免费证书一般较少，苏一需要一定的费用；
 
-##  HTTP处理长连接的方法
-![http处理长连接的方法](./images/13263206-f5ff7097081e9faf.png)
+##  HTTP协议状态码学习
+https://www.jianshu.com/p/7b422a428c72
