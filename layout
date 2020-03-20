@@ -1,0 +1,6 @@
+# 前端布局
+
+BFC: 全名（block formatting context） 即：块级上下文格式化
+FFC: 全名（flex formatting context）即：display为flex 的元素内的渲染规则
+GFC：全名（grid formatting context）即：display为grid 的元素内的渲染规则
+IFC：全名（inline formatting context）即：内联级的元素渲染规则
