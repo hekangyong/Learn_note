@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      .box {
+        width: 90%;
+        height: 200px;
+        background: #ececdd;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .inner-nofloat {
+        width: 100%;
+        height: 20px;
+        background: #f7c3c3;
+        /* 因为没有浮动的原因 连个dom之间margin进行了合并处理 */
+        margin-bottom: 40px;
+        margin-top: 20px;
+      }
+      .inner-float-left {
+        /* 因为 拥有 左浮动的原因， 与上一个dom之间的 margin 没有进行合并处理 */
+        width: 100%;
+        height: 20px;
+        background: #d3cff7;
+        float: left;
+        margin-bottom: 40px;
+        margin-top: 20px;
+      }
+      .inner-float-right {
+        width: 100%;
+        height: 20px;
+        background: #d3cff7;
+        float: right;
+        margin-bottom: 40px;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <!-- <div class="inner-nofloat"></div>
+      <div class="inner-nofloat"></div> -->
+      <div class="inner-float-left"></div>
+      <div class="inner-float-right"></div>
+    </div>
+  </body>
+</html>
