@@ -27,11 +27,14 @@
 var hasGroupsSizeX = function(deck) {
   let map = new Map()
   for (let n of deck) {
+    // 进行判断 如果map中没有该数字则加入 (number,1)， 入map中有改数字则 (number,n+1)
     map.set(n, map.has(n) ? map.get(n) + 1 : 1)
   }
+  // 典型的map转数组
   let arr = [...map.values()]
   let res = arr[0]
   console.log(arr)
+  // 进行求最小公因数
   return arr.every(i => (res = gcd(res, i)) > 1)
 }
 let gcd = (a, b) => {
@@ -43,6 +46,5 @@ let gcd = (a, b) => {
   }
 }
 console.log(hasGroupsSizeX([1, 2, 3, 4, 4, 3, 2, 1]))
-// hasGroupsSizeX([1])
 
 // 借鉴与 https://leetcode-cn.com/problems/x-of-a-kind-in-a-deck-of-cards/solution/mei-ri-yi-ti-ep27-card-groupingqia-pai-fen-zu-java/
