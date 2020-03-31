@@ -18,6 +18,12 @@
  * @param {number[]} nums
  * @return {number[]}
  */
+
+/**
+ * 从数组的第二个元素开始,将数组中的每一个元素按照
+ * （升序或者降序）规则插入到已排好序的数组中以达到排序的目的.
+ * 插入排序
+ */
 var sortArray = function(nums) {
   for (let a = 1; a < nums.length; a++) {
     for (let b = a; b > 0; b--) {
