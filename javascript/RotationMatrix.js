@@ -24,9 +24,15 @@
  * @return {void} Do not return anything, modify matrix in-place instead.
  */
 const app = matrix => {
-  for (let i = 0; i < matrix.length; i++) {
-    for (let j = i; j < matrix[0].length; j++) {
+  const matLen = matrix.length
+  const matLen0 = matrix[0].length
+  for (let i = 0; i < matLen; i++) {
+    for (let j = i; j < matLen0; j++) {
       ;[matrix[i][j], matrix[j][i]] = [matrix[j][i], matrix[i][j]]
+      //   另一种数值调换的方法
+      //   let temp = matrix[i][j]
+      //   matrix[i][j] = matrix[j][i]
+      //   matrix[j][i] = temp
     }
   }
   //   matrix.map(item => {
