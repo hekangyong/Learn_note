@@ -12,6 +12,8 @@
  * 输入：m = 3, n = 1, k = 0
  * 输出：1
  * 题目链接：https://leetcode-cn.com/problems/ji-qi-ren-de-yun-dong-fan-wei-lcof
+  * /
+/**
  * @param {number} m
  * @param {number} n
  * @param {number} k
@@ -19,9 +21,7 @@
  */
 var movingCount = function (m, n, k) {
   const arr = new Array[m]()
-  for (let a = 0; a < arr.length; a++) {
-      
-  }
+  for (let a = 0; a < arr.length; a++) {}
   console.log(arr)
 }
 movingCount(3, 2, 1)

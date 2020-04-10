@@ -31,7 +31,9 @@
  * 提示：
  * 1 <= text.size <= 10000
  * 题目链接: https://leetcode-cn.com/problems/maximum-nesting-depth-of-two-valid-parentheses-strings/
+ * /
+/**
  * @param {string} seq
  * @return {number[]}
  */
-var maxDepthAfterSplit = function(seq) {}
+var maxDepthAfterSplit = function (seq) {}

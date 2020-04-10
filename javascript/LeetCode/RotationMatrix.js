@@ -20,10 +20,12 @@
  * ]
  *
  * 题目链接: https://leetcode-cn.com/problems/rotate-matrix-lcci/submissions/
+  * /
+/**
  * @param {number[][]} matrix
  * @return {void} Do not return anything, modify matrix in-place instead.
  */
-const app = matrix => {
+const app = (matrix) => {
   const matLen = matrix.length
   const matLen0 = matrix[0].length
   for (let i = 0; i < matLen; i++) {

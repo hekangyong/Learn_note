@@ -16,6 +16,8 @@
  * 解释: 如果两个单词间有多余的空格，将反转后单词间的空格减少到只含一个。
  *
  * 题目链接：https://leetcode-cn.com/problems/reverse-words-in-a-string
+  * /
+/**
  * @param {string} s
  * @return {string}
  */

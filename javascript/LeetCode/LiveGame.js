@@ -29,11 +29,13 @@
  *   [0,1,0]
  * ]
  * 题目链接: https://leetcode-cn.com/problems/game-of-life/
+  * /
+/**
  * @param {number[][]} board
  * @return {void} Do not return anything, modify board in-place instead.
  */
 // 参考自评论区中的田姨
-var gameOfLife = function(board) {
+var gameOfLife = function (board) {
   const y = [-1, 0, 1, 0, -1, 1, 1, -1]
   const x = [0, 1, 0, -1, 1, 1, -1, -1]
   let m = board.length

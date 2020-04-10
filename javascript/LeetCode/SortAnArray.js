@@ -15,6 +15,8 @@
  * 1 <= nums.length <= 50000
  * -50000 <= nums[i] <= 50000
  * 题目链接: https://leetcode-cn.com/problems/sort-an-array/
+  * /
+/**
  * @param {number[]} nums
  * @return {number[]}
  */
@@ -24,7 +26,7 @@
  * （升序或者降序）规则插入到已排好序的数组中以达到排序的目的.
  * 插入排序
  */
-var sortArray = function(nums) {
+var sortArray = function (nums) {
   for (let a = 1; a < nums.length; a++) {
     for (let b = a; b > 0; b--) {
       if (nums[b] < nums[b - 1]) {

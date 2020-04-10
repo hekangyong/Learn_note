@@ -9,11 +9,13 @@
  * 返回车能够在一次移动中捕获到的卒的数量。
  *
  * 题目链接: https://leetcode-cn.com/problems/available-captures-for-rook/
+ * /
+/**
  *
  * @param {character[][]} board
  * @return {number}
  */
-var numRookCaptures = function(board) {
+var numRookCaptures = function (board) {
   let count = 0
   let x, y
   for (let a = 0; a < board.length; a++) {

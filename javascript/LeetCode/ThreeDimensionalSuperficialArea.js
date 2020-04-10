@@ -18,12 +18,14 @@
  *
  * 请你返回最终形体的表面积。
  * 题目链接： https://leetcode-cn.com/problems/surface-area-of-3d-shapes/
+  * /
+/**
  * @param {number[][]} grid
  * @return {number}
  */
 
 // 暴力破解
-var surfaceArea = function(grid) {
+var surfaceArea = function (grid) {
   let count = 0
   for (let a = 0; a < grid.length; a++) {
     console.log(grid[a])

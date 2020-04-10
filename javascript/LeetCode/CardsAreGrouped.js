@@ -20,11 +20,12 @@
  * 解释：没有满足要求的分组。
  *
  * 題目鏈接：https://leetcode-cn.com/problems/x-of-a-kind-in-a-deck-of-cards/
- *
+  * /
+/**
  * @param {number[]} deck
  * @return {boolean}
  */
-var hasGroupsSizeX = function(deck) {
+var hasGroupsSizeX = function (deck) {
   let map = new Map()
   for (let n of deck) {
     // 进行判断 如果map中没有该数字则加入 (number,1)， 入map中有改数字则 (number,n+1)
@@ -35,7 +36,7 @@ var hasGroupsSizeX = function(deck) {
   let res = arr[0]
   console.log(arr)
   // 进行求最小公因数
-  return arr.every(i => (res = gcd(res, i)) > 1)
+  return arr.every((i) => (res = gcd(res, i)) > 1)
 }
 let gcd = (a, b) => {
   console.log(a, b)

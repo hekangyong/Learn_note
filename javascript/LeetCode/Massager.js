@@ -20,11 +20,12 @@
  * 输入： [2,1,4,5,3,1,1,3]
  * 输出： 12
  * 解释： 选择 1 号预约、 3 号预约、 5 号预约和 8 号预约，总时长 = 2 + 4 + 3 + 3 = 12。
- * 
+ * /
+/**
  * @param {number[]} nums
  * @return {number}
  */
-var massage = function(nums) {
+var massage = function (nums) {
   let len = nums.length
   if (len === 0) return 0
   if (len === 1) return nums[1]
