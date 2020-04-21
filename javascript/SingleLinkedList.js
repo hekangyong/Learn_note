@@ -1,95 +1,76 @@
-function Node(data) {
-    this.data = data;    //存储数据
-    this.next = null     //指向链表中的下一个节点
+/**
+ * 初始化链表
+ * @param next 指针
+ * @param data 用来存储数据
+ */
+class ListNode {
+  constructor(data) {
+    this.next = null
+    this.data = data
+  }
 }
 
-function SingleList() {
-    this._length = 0    //用于表示节点中的节点数量
-    this.head = null    //分配一个节点作为链表的头
-}
+/**
+ * @param header 每一个链表都有一个头指针，指向第一个节点，否则为 Null
+ * @param length 记录链表的长度
+ */
+class SingList {
+  constructor() {
+    this.header = null
+    this.length = 0
+  }
 
-// 向链表总添加一个节点
-SingleList.prototype.add = function (value) {
-    var node = new Node(value),
-        currentNode = this.head
+  // 创建节点
+  static createList(key) {
+    return new ListNode(key)
+  }
 
-    // 1st use-case:an empty
-    if (!currentNode) {
-        this.head = node
-        this._length++
-        return node
+  // 插入节点
+  insert(node) {
+    if (this.header) {
+      node.next = this.header
+    } else {
+      node.next = null
     }
+    this.header = node
+    this.length++
+    return
+  }
 
-    // 2nd use-case: a non-empty list
-    while (currentNode.next) {
-        currentNode = currentNode.next;
+  // 寻找指定节点
+  find(key) {
+    let node = this.header
+    while (node !== null && node !== key) {
+      node = node.next
     }
-
-    this._length++
-
     return node
+  }
+
+  // 删除节点
+  delete(node) {
+    if (this.length === 0) {
+      throw 'node is underfined'
+    }
+
+    if (node === this.header) {
+      this.header = node.next
+      this.length--
+      return
+    }
+
+    let preNode = this.header
+    while (preNode.next !== node) {
+      preNode = preNode.next
+    }
+
+    if (node.next === null) {
+      preNode.next = null
+    }
+
+    if (node.next) {
+      preNode.next = node.next
+    }
+
+    this.length--
+  }
 }
-
-// 找到在列表中指定位置n上的节点
-SingleList.prototype.searchNodeAt = function (position) {
-    var currentNode = this.head,
-        length = this._length,
-        count = -1,
-        message = { failure: 'Faileure: non-existent node in this list' }
-
-    // 1st use-case: an invalid position
-    if (length === 0 || position < 1 || position > length) {
-        throw new Error(message.failure)
-    }
-
-    // 2nd use-case: a valid position
-    while (count < position) {
-        currentNode = currentNode.next;
-        count++
-    }
-
-    return currentNode;
-}
-
-// 删除指定位置上的节点
-SingleList.prototype.remove = function (position) {
-    var currentNode = this.head,
-        length = this._length,
-        count = 0,
-        message = { failure: 'Failure: non-existent node in this list.' },
-        beforeNodeDelete = null,
-        nodeToDelete = null,
-        deleteNode = null
-
-    // 1st use-case: an invalid position
-    if (position < 0 || position > length) {
-        throw new Error(message.failure)
-    }
-
-    // 2nd use-case: the first node is removed
-    if (position === 1) {
-        this.head = currentNode.next
-        deleteNode = currentNode
-        currentNode = null
-        this._length--
-        return deleteNode
-    }
-
-    // 3rd use-case: any other node is removed
-    while (count < position) {
-        beforeNodeDelete = currentNode
-        nodeToDelete = currentNode.next
-        count++
-    }
-
-    beforeNodeDelete.next = nodeToDelete.next
-    deleteNode = nodeToDelete
-    nodeToDelete = null
-    this._length--
-
-    return deleteNode
-}
-
-const aa = new SingleList()
-aa.add([1, 1, 3, 5])
-console.log(aa)
