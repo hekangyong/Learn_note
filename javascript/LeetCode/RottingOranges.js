@@ -54,7 +54,7 @@ var orangesRotting = function (grid) {
       }
     }
   }
-  // 判断腐坏的橘子数组中的长度 以及新鲜橘子的数量
+  // 利用广度优先算法来判断腐坏的橘子数组中的长度 以及新鲜橘子的数量
   while (spoilArr.length && fresh) {
     const newArr = []
     while (spoilArr.length) {
