@@ -24,7 +24,7 @@
   //  ES18 Object.values() 是一个类似 Object.keys() 的新函数，不过但vlaues返回的是对象中的所有值，不包括对象中继承的值
   const obj = { a: 1, b: 2, c: 3 }
   // 不使用ES8 将对象循环成数组
-  const arr = Object.keys(obj).map(i => obj[i])
+  const arr = Object.keys(obj).map((i) => obj[i])
   console.log(arr) // [1,2,3]
   const arrThirt = Object.keys(obj)
   console.log(arrThirt) // ['a','b','c']
@@ -36,7 +36,7 @@
 {
   // ES8 Object.entries() 函数返回一个给定自身对象一个可枚举属性的键值对的一个数组
   const obj = { a: 1, b: 2, c: 3 }
-  Object.keys(obj).map(item => {
+  Object.keys(obj).map((item) => {
     console.log(`key: ${item}, value: ${obj[item]}`)
   })
   console.log('----------this is a cut-off online------------')
@@ -111,3 +111,16 @@
  * @return {Actomics.sub(typedArray, index, value)} 将指定位置上的数组元素与给定值相减，并返回相减前的值
  * @return {Actomics.xor(typedArrat, index, value)} 将指定位置上的数组元素与给定的值相异或，并返回异或操作前该元素的值。
  */
+
+{
+  class Ani {
+    constructor(action) {
+      super('anim')
+      this.action = action
+    }
+    action = null
+  }
+  const ani = new Ani('aaa')
+  console.log(ani instanceof Anim)
+  console.log(ani instanceof Ani)
+}
