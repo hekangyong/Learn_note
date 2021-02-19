@@ -1,8 +1,8 @@
 # LeetCode
 
-1. ***[给定一个 没有重复 数字的序列，返回其所有可能的全排列  (未完成)](./javascript/LeetCode/AllPermutation(unfinished ).js)***
+1. ***[给定一个 没有重复 数字的序列，返回其所有可能的全排列  未完成](./javascript/LeetCode/AllPermutation(unfinished ).js)***
 2. ***[可以被一步捕获的棋子数](./javascript/LeetCode/AvailableCatchOfVehicles.js)***
-3. ***[有效括号的嵌套深度(未完成)](./javascript/LeetCode/BacketsNestDepth(unfinished ).js)***
+3. ***[有效括号的嵌套深度  未完成](./javascript/LeetCode/BacketsNestDepth(unfinished ).js)***
 4. ***[棒球比赛](./javascript/LeetCode/BaseBallGame.js)***
 5. ***[把数字翻译成字符串](./javascript/LeetCode/BaShuZiFanYiChengZiFuChuanLcof.js)***
 6. ***[卡牌分组](./javascript/LeetCode/CardsAreGrouped.js)***
@@ -13,7 +13,7 @@
 11. ***[按摩师](./javascript/LeetCode/Massager.js)***
 12. ***[链表的中间结点](./javascript/LeetCode/MiddleOfTheLinkedList.js)***
 13. ***[未知算法题1](./javascript/LeetCode/oddOrEvenArr.js)***
-14. ***[机器人的运动范围 (未完成)](./javascript/LeetCode/RangeOfMotionOfTheRobot(unfinished ).js)***
+14. ***[机器人的运动范围  未完成](./javascript/LeetCode/RangeOfMotionOfTheRobot(unfinished ).js)***
 15. ***[反转链表](./javascript/LeetCode/ReverseLinkedList.js)***
 16. ***[翻转字符串里的单词](./javascript/LeetCode/ReverseWordInAString.js)***
 17. ***[旋转矩阵](./javascript/LeetCode/RotationMatrix.js)***
