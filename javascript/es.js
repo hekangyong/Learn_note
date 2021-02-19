@@ -112,15 +112,79 @@
  * @return {Actomics.xor(typedArrat, index, value)} 将指定位置上的数组元素与给定的值相异或，并返回异或操作前该元素的值。
  */
 
+// {
+//   class Ani {
+//     constructor(action) {
+//       super('anim')
+//       this.action = action
+//     }
+//     action = null
+//   }
+//   const ani = new Ani('aaa')
+//   console.log(ani instanceof Anim)
+//   console.log(ani instanceof Ani)
+// }
+
 {
-  class Ani {
-    constructor(action) {
-      super('anim')
-      this.action = action
-    }
-    action = null
+  function* hello() {
+    yield 1
+    yield 2
+    return 3
   }
-  const ani = new Ani('aaa')
-  console.log(ani instanceof Anim)
-  console.log(ani instanceof Ani)
+  const a = hello()
+  const fun = () => {
+    const next = a.next()
+    console.log(next)
+    if (next.done === false) {
+      fun()
+    }
+  }
+  fun()
+}
+
+{
+  const promise = (args) => {
+    return new Promise((reslove, reject) => {
+      // ...args
+      if (i !== 0) {
+        reslove(value)
+      } else {
+        reject(error)
+      }
+    })
+  }
+
+  const http = () => {
+    promise(11).then(console.log).catch(console.log)
+  }
+}
+
+{
+  const promise = (time, arg) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(arg)
+      }, time)
+    })
+  }
+
+  const p1 = promise(10, 123)
+  const p2 = promise(500, 11111)
+  Promise.race([p1, p2]).then((res) => {
+    console.log(res)
+  })
+}
+
+{
+  const a = { a: 1, b: 1 }
+  function hello({ a, b }) {
+    console.log(a, b)
+  }
+  hello(a)
+}
+
+{
+  ;(() => {
+    console.log('asdasdasd')
+  })()
 }
