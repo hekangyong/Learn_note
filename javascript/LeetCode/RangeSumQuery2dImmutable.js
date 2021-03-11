@@ -28,7 +28,10 @@
 /**
  * @param {number[][]} matrix
  */
-var NumMatrix = function (matrix) {}
+var NumMatrix = function (matrix) {
+  console.log(matrix)
+  this.list = matrix
+}
 
 /**
  * @param {number} row1
@@ -37,11 +40,58 @@ var NumMatrix = function (matrix) {}
  * @param {number} col2
  * @return {number}
  */
-NumMatrix.prototype.sumRegion = function (row1, col1, row2, col2) {}
+NumMatrix.prototype.sumRegion = function (row1, col1, row2, col2) {
+  let count = 0
+  for (let i = col1; i <= col2; i++) {
+    for (let j = row1; j <= row2; j++) {
+      const index = this.list[j][i]
+      count += index
+    }
+  }
+  return count
+}
 
+// const n = new NumMatrix([
+//   [3, 0, 1, 4, 2],
+//   [5, 6, 3, 2, 1],
+//   [1, 2, 0, 1, 5],
+//   [4, 1, 0, 1, 7],
+//   [1, 0, 3, 0, 5],
+// ])
+
+// console.log(n.sumRegion(2, 1, 4, 3))
+// console.log(n.sumRegion(1, 1, 2, 2))
+// console.log(n.sumRegion(1, 2, 2, 4))
+
+// 官方
+const Aaaa = function (matrix) {
+  const m = matrix.length
+  if (m > 0) {
+    const n = matrix[0].length
+    this.sums = new Array(m + 1).fill(0).map(() => new Array(n + 1).fill(0))
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < n; j++) {
+        this.sums[i + 1][j + 1] =
+          this.sums[i][j + 1] +
+          this.sums[i + 1][j] -
+          this.sums[i][j] +
+          matrix[i][j]
+      }
+    }
+  }
+}
+
+const b = new Aaaa([
+  [3, 0, 1, 4, 2],
+  [5, 6, 3, 2, 1],
+  [1, 2, 0, 1, 5],
+  [4, 1, 0, 1, 7],
+  [1, 0, 3, 0, 5],
+])
+
+console.log(b)
 /**
  * Your NumMatrix object will be instantiated and called as such:
  * var obj = new NumMatrix(matrix)
  * var param_1 = obj.sumRegion(row1,col1,row2,col2)
  */
-    

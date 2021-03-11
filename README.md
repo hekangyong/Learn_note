@@ -26,6 +26,7 @@
 24. ***[无重复字符的最长子串](./javascript/LeetCode/TheOldestStringWithoutRepeatingCharacters.js)***
 25. ***[三维形体的表面积](./javascript/LeetCode/ThreeDimensionalSuperficialArea.js)***
 26. ***[重塑矩阵](./javascript/LeetCode/ReshapeTheMatrix.js)***
+27. ***[二维区域和检索 - 矩阵不可变](./javascript/LeetCode/RangeSumQuery2dImmutable.js)***
 
 
 
