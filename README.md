@@ -27,6 +27,7 @@
 25. ***[三维形体的表面积](./javascript/LeetCode/ThreeDimensionalSuperficialArea.js)***
 26. ***[重塑矩阵](./javascript/LeetCode/ReshapeTheMatrix.js)***
 27. ***[二维区域和检索 - 矩阵不可变](./javascript/LeetCode/RangeSumQuery2dImmutable.js)***
+28. ***[机器人的运动范围](./javascript/LeetCode/RangeOfMotionOfTheRobot.js)***
 
 
 
