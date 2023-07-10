@@ -44,13 +44,13 @@ UDP因为不需要一对一连接，所以他可以做到一对一，一对多�
 解释：
 因为UDP不用对收发的数据进行确认校验，有什么发什么，所以UDP的开销更小效率更高。
 
-![对比](./images/tcp.jpg)
+![对比](../images/tcp.jpg)
 
 ##  2.UDP协议解析
 
 ### 2.1 UDP包头
 
-![UDP包头](./images/UDP.png)
+![UDP包头](../images/UDP.png)
 由上图可知，UDP的包头很简单，包含的字段有着：
 -   16-bit source port (源端口 16位)
 -   16-bit destination port(目标端口 16位)
@@ -72,7 +72,7 @@ UDP因为不需要一对一连接，所以他可以做到一对一，一对多�
 
 ### 3.1 TCP包头
 
-![TCP包头](./images/TCP包头.jpg)
+![TCP包头](../images/TCP包头.jpg)
 
 由上图可知TCP包头较之于UDP复杂很多，TCP包含的字段有：
 1.  **源、目端口号**：占16比特。TCP协议通过使用"端口"来标识源端和目标端的应用进程。
