@@ -30,5 +30,21 @@
 28. ***[机器人的运动范围](./javascript/LeetCode/RangeOfMotionOfTheRobot.js)***
 29. ***[电话号码的字母组合](./javascript/LeetCode/TelephoneNumberCombination.js)***
 
-
+### Cocos 便捷方法
+```JavaScript
+// 打印某个组件所在节点树的路径
+function getNodePath (node) {
+    let path;
+    while (node && !(node instanceof cc.Scene)) {
+        if (path) {
+            path = node.name + '/' + path;
+        }
+        else {
+            path = node.name;
+        }
+        node = node.parent;
+    }
+    return path;
+}
+```
 
