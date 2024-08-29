@@ -16,7 +16,7 @@
  *  Input: n = 3, edges = [[0,1]], succProb = [0.5], start = 0, end = 2
  *  Output: 0.00000
  *  Explanation: There is no path between 0 and 2.
- * link: https://leetcode.com/problems/path-with-maximum-probability/description/?envType=daily-question&envId=2024-08-27
+ * link: https://leetcode.com/problems/path-with-maximum-probability/description/
  */
 
 /**
