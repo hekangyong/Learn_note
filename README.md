@@ -30,7 +30,8 @@
 28. **_[机器人的运动范围](./javascript/LeetCode/RangeOfMotionOfTheRobot.js)_**
 29. **_[电话号码的字母组合](./javascript/LeetCode/TelephoneNumberCombination.js)_**
 30. **_[最大概率路径](./javascript/LeetCode/1514_PathWithMaximumProbability.js)_**
-31. **_[子岛屿数量](./javascript/LeetCode/1905_CountSubIslands.js.js)_**
+31. **_[子岛屿数量](./javascript/LeetCode/1905_CountSubIslands.js)_**
+32. **_[移除同一行或同一列的最多石头](./javascript/LeetCode/947_MostStonesRemovedWithSameRowOrColumn.js)_**
 
 ### Cocos 便捷方法
 
