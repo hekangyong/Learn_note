@@ -41,7 +41,7 @@
  *  1 <= stones.length <= 1000
  *  0 <= xi, yi <= 104
  *  No two stones are at the same coordinate point.
- * 
+ *
  * https://leetcode.com/problems/most-stones-removed-with-same-row-or-column
  */
 
@@ -90,9 +90,10 @@ var removeStones = function (stones) {
 console.log(
     removeStones([
         [0, 0],
-        [0, 2],
-        [1, 1],
-        [2, 0],
+        [0, 1],
+        [1, 0],
+        [1, 2],
+        [2, 1],
         [2, 2],
     ])
 )
