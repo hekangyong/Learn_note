@@ -1,5 +1,5 @@
 /**
- * 2419. Longest Subarray With Maximum Bitwise AND
+ * 2419. LongestSubarrayWithMaximumBitwiseAND
  *
  * You are given an integer array nums of size n.
  *

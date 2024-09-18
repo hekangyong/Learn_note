@@ -32,6 +32,8 @@
 30. **_[最大概率路径](./javascript/LeetCode/1514_PathWithMaximumProbability.js)_**
 31. **_[子岛屿数量](./javascript/LeetCode/1905_CountSubIslands.js)_**
 32. **_[移除同一行或同一列的最多石头](./javascript/LeetCode/947_MostStonesRemovedWithSameRowOrColumn.js)_**
+33. **_[最长的子数组按位与](./javascript/LeetCode/2419_LongestSubarrayWithMaximumBitwiseAND.js)_**
+34. **_[最大的数字](./javascript/LeetCode/179_LargestNumber.js)_**
 
 ### Cocos 便捷方法
 
