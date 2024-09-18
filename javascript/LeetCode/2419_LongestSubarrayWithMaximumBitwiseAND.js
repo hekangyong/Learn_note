@@ -42,15 +42,23 @@ var longestSubarray = function (nums) {
         maxLen = 0,
         maxNum = Math.max(...nums)
 
+    // 循环nums数组
     while (i < nums.length) {
+        // 判断第i个nums值是否等于最大值并且I小于nums长度
         if (nums[i] === maxNum && i < nums.length) {
+            // 循环判断第i个nums值是否等于最大值并且小于nums长度
             while (nums[i] === maxNum && i < nums.length) {
+                // 当前连续值++
                 currentLen++
+                // 下标++
                 i++
             }
+            // 找到下一个nums值不等于最大值的下标
             maxLen = Math.max(maxLen, currentLen)
+            // 重置currentLen
             currentLen = 0
         } else {
+            // 下标++
             i++
         }
     }
