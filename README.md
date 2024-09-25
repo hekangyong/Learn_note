@@ -34,6 +34,8 @@
 32. **_[移除同一行或同一列的最多石头](./javascript/LeetCode/947_MostStonesRemovedWithSameRowOrColumn.js)_**
 33. **_[最长的子数组按位与](./javascript/LeetCode/2419_LongestSubarrayWithMaximumBitwiseAND.js)_**
 34. **_[最大的数字](./javascript/LeetCode/179_LargestNumber.js)_**
+35. **_[字符串中的额外字符](./javascript/LeetCode/2707_ExtraCharactersInAString.js)_**
+36. **_[找到最长公共前缀的长度](./javascript/LeetCode/3043_FindTheLengthOfTheLongestCommonPrefix.js)_**
 
 ### Cocos 便捷方法
 
