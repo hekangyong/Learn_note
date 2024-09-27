@@ -56,7 +56,7 @@
     MyCalendarTwo.prototype.book = function (start, end) {
         for (let i = 0; i < this.doubleBooked.length; i++) {
             const [s, e] = this.doubleBooked[i]
-            if (Math.max(s, start) < Math.min(end, e)) {
+            if (s < end && e > start) {
                 return false
             }
         }
