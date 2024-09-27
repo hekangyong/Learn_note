@@ -42,19 +42,94 @@
  * link: https://leetcode.com/problems/my-calendar-ii/description
  */
 
-var MyCalendarTwo = function () {}
+{
+    var MyCalendarTwo = function () {
+        this.single = []
+        this.doubleBooked = []
+    }
 
-/**
- * @param {number} start
- * @param {number} end
- * @return {boolean}
- */
-MyCalendarTwo.prototype.book = function (start, end) {
-    return true
+    /**
+     * @param {number} start
+     * @param {number} end
+     * @return {boolean}
+     */
+    MyCalendarTwo.prototype.book = function (start, end) {
+        for (let i = 0; i < this.doubleBooked.length; i++) {
+            const [s, e] = this.doubleBooked[i]
+            if (Math.max(s, start) < Math.min(end, e)) {
+                return false
+            }
+        }
+
+        for (let i = 0; i < this.single.length; i++) {
+            const [s, e] = this.single[i]
+            if (Math.max(s, start) < Math.min(end, e)) {
+                this.doubleBooked.push([Math.max(s, start), Math.min(end, e)])
+            }
+        }
+        this.single.push([start, end])
+        return true
+    }
+
+    /**
+     * Your MyCalendarTwo object will be instantiated and called as such:
+     * var obj = new MyCalendarTwo()
+     * var param_1 = obj.book(start,end)
+     */
+
+    const myCalendarTwo = new MyCalendarTwo()
+
+    console.log(myCalendarTwo.book(10, 20)) // return True
+    console.log(myCalendarTwo.book(50, 60)) // return True
+    console.log(myCalendarTwo.book(10, 40)) // return True
+    console.log(myCalendarTwo.book(5, 15)) // return False
+    console.log(myCalendarTwo.book(5, 10)) // return True
+    console.log(myCalendarTwo.book(25, 55)) // return True
 }
 
-/**
- * Your MyCalendarTwo object will be instantiated and called as such:
- * var obj = new MyCalendarTwo()
- * var param_1 = obj.book(start,end)
- */
+{
+    var MyCalendarTwo = function () {
+        this.single = [] // Stores single booked intervals
+        this.doubleBooked = [] // Stores double booked intervals
+    }
+
+    /**
+     * @param {number} start
+     * @param {number} end
+     * @return {boolean}
+     */
+    MyCalendarTwo.prototype.book = function (start, end) {
+        console.log('doubleBooked', JSON.stringify(this.doubleBooked))
+        console.log('single', JSON.stringify(this.single))
+        console.log('check', start, end)
+        // Check for triple booking by overlapping with double booked intervals
+        for (let [fStart, fEnd] of this.doubleBooked) {
+            if (Math.max(start, fStart) < Math.min(end, fEnd)) {
+                return false // Triple booking detected
+            }
+        }
+
+        // Add overlapping parts to double bookings
+        for (let [fStart, fEnd] of this.single) {
+            if (Math.max(start, fStart) < Math.min(end, fEnd)) {
+                this.doubleBooked.push([
+                    Math.max(start, fStart),
+                    Math.min(end, fEnd),
+                ])
+            }
+        }
+
+        // Add the event to single bookings
+        this.single.push([start, end])
+        return true
+    }
+
+    // const myCalendarTwo = new MyCalendarTwo()
+
+    // console.log(myCalendarTwo.book(10, 20)) // return True
+    // console.log(myCalendarTwo.book(50, 60)) // return True
+    // console.log(myCalendarTwo.book(10, 40)) // return True
+    // console.log(myCalendarTwo.book(5, 15)) // return False
+    // console.log(myCalendarTwo.book(5, 10)) // return True
+    // console.log(myCalendarTwo.book(25, 55)) // return True
+}
