@@ -56,6 +56,7 @@
     MyCalendarTwo.prototype.book = function (start, end) {
         for (let i = 0; i < this.doubleBooked.length; i++) {
             const [s, e] = this.doubleBooked[i]
+            // 判断是否有交集
             if (s < end && e > start) {
                 return false
             }
