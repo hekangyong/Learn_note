@@ -36,6 +36,7 @@
 34. **_[最大的数字](./javascript/LeetCode/179_LargestNumber.js)_**
 35. **_[字符串中的额外字符](./javascript/LeetCode/2707_ExtraCharactersInAString.js)_**
 36. **_[找到最长公共前缀的长度](./javascript/LeetCode/3043_FindTheLengthOfTheLongestCommonPrefix.js)_**
+37. **_[我的日历I](./javascript/LeetCode/729_MyCalendarI.js)_**
 
 ### Cocos 便捷方法
 
