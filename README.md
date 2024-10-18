@@ -38,6 +38,7 @@
 36. **_[找到最长公共前缀的长度](./javascript/LeetCode/Script/3043_FindTheLengthOfTheLongestCommonPrefix.js)_**
 37. **_[我的日历I](./javascript/LeetCode/Script/729_MyCalendarI.js)_**
 38. **_[我的日历II](./javascript/LeetCode/Script/731_MyCalendarII.jsjs)_**
+39. **_[计算最大位或子集的个数](./javascript/LeetCode/Script/2044_CountNumberOfMaximumBitwise-ORSubsets.js)_**
 
 ### Cocos 便捷方法
 
