@@ -42,19 +42,23 @@ var maxUniqueSplit = function (s) {
     let res = 0
     let strings = new Set()
     
+    // 定义递归函数
     function search(str) {
-        console.log('search', str)
-        console.log(strings)
+        // 检测字符串是否在set中存在
         if (!strings.has(str)) {
+            // 如果不存在，将字符串添加到set中，并返回集合的大小
             strings.add(str)
             res = Math.max(res, strings.size)
             strings.delete(str)
         }
 
+        // 递归搜索剩余部分
         for (let i = 1; i < str.length; i++) {
             const a = str.substring(0, i)
+            // 检测是否包含在set中
             if (strings.has(a)) continue
             strings.add(a)
+            // 递归循环下一个字符串
             search(str.substring(i))
             strings.delete(a)
         }
