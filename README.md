@@ -40,6 +40,7 @@
 38. **_[我的日历II](./javascript/LeetCode/Script/731_MyCalendarII.jsjs)_**
 39. **_[计算最大位或子集的个数](./javascript/LeetCode/Script/2044_CountNumberOfMaximumBitwise-ORSubsets.js)_**
 40. **_[将字符串拆分为唯一子字符串的最大数目](./javascript/LeetCode/Script/1593_SplitAStringIntoTheMaxNumberOfUniqueSubstrings.js)_**
+41. **_[二叉树中第k大的和](./javascript/LeetCode/Script/2583_KthLargestSumInABinaryTree.js)_**
 
 ### Cocos 便捷方法
 
