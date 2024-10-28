@@ -27,6 +27,7 @@
  * Constraints:
  * 2 <= nums.length <= 105
  * 2 <= nums[i] <= 105
+ * link: https://leetcode.com/problems/longest-square-streak-in-an-array
  */
 
 /**
