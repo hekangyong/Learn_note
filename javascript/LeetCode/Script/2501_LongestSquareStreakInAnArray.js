@@ -34,20 +34,20 @@
  * @return {number}
  */
 var longestSquareStreak = function(nums) {
-    const mp = new Map();
-    nums.sort((a, b) => a - b);
-    let res = -1;
-
-    for (const num of nums) {
-        const sqrt = Math.floor(Math.sqrt(num));
-
-        if (sqrt * sqrt === num && mp.has(sqrt)) {
-            mp.set(num, mp.get(sqrt) + 1);
-            res = Math.max(res, mp.get(num));
+    nums.sort((a, b) => a - b)
+    const mp = new Map()
+    let res = -1
+    for (let i = 0; i < nums.length; i++) {
+        const item = nums[i]
+        const sq = Math.floor(Math.sqrt(item))
+        if (sq * sq === item && mp.has(sq)) {
+            mp.set(item, mp.get(sq) + 1)
+            res = Math.max(res, mp.get(item))
         } else {
-            mp.set(num, 1);
+            mp.set(item, 1)
         }
     }
+
     return res
 }
 
