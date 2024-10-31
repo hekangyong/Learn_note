@@ -85,10 +85,13 @@ var minimumTotalDistance = function(robot, factory) {
     // Create DP table
     const dp = Array(m + 1).fill().map(() => Array(n + 1).fill(0))
 
+    console.log('one;', dp)
     // Base case initialization
     for (let i = 0; i < m; i++) {
         dp[i][n] = Infinity
     }
+
+    console.log('two:', dp)
 
     // Process each factory from right to left
     for (let j = n - 1; j >= 0; j--) {
@@ -97,9 +100,10 @@ var minimumTotalDistance = function(robot, factory) {
 
         // Process each robot from right to left
         for (let i = m - 1; i >= 0; i--) {
+            console.log('qqArray:: ', qq)
             // Add distance to current factory
             prefix += Math.abs(robot[i] - factory[j][0])
-
+            console.log('three: ', prefix, robot[i], factory[j])
             // Remove elements outside factory limit window
             if (qq[0][0] > i + factory[j][1]) {
                 qq.shift()
@@ -115,6 +119,7 @@ var minimumTotalDistance = function(robot, factory) {
         }
     }
 
+    console.log('final', dp)
     return dp[0][0]
 }
 console.log(minimumTotalDistance(([0, 4, 6]), [[2, 2], [6, 2]]))
