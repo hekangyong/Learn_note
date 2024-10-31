@@ -42,6 +42,7 @@
 40. **_[将字符串拆分为唯一子字符串的最大数目](./javascript/LeetCode/Script/1593_SplitAStringIntoTheMaxNumberOfUniqueSubstrings.js)_**
 41. **_[二叉树中第k大的和](./javascript/LeetCode/Script/2583_KthLargestSumInABinaryTree.js)_**
 42. **_[数组中最长的正方形条纹](./javascript/LeetCode/Script/2501_LongestSquareStreakInAnArray.js)_**
+43. **_[最小总行驶距离](./javascript/LeetCode/Script/2463_MinimumTotalDistanceTraveled.js)_**
 
 ### Cocos 便捷方法
 
