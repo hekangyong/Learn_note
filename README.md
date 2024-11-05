@@ -44,6 +44,7 @@
 42. **_[数组中最长的正方形条纹](./javascript/LeetCode/Script/2501_LongestSquareStreakInAnArray.js)_**
 43. **_[最小总行驶距离](./javascript/LeetCode/Script/2463_MinimumTotalDistanceTraveled.js)_**
 44. **_[删除多余的字符串](./javascript/LeetCode/Script/1957_DeleteCharactersToMakeFancyString.js)_**
+45. **_[最小数量的变化，使二进制字符串美丽](./javascript/LeetCode/Script/2914_MinimumNumberOfChangesToMakeBinaryStringBeautiful.js)**
 
 ### Cocos 便捷方法
 
