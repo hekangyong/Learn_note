@@ -43,6 +43,7 @@
 41. **_[二叉树中第k大的和](./javascript/LeetCode/Script/2583_KthLargestSumInABinaryTree.js)_**
 42. **_[数组中最长的正方形条纹](./javascript/LeetCode/Script/2501_LongestSquareStreakInAnArray.js)_**
 43. **_[最小总行驶距离](./javascript/LeetCode/Script/2463_MinimumTotalDistanceTraveled.js)_**
+44. **_[删除多余的字符串](./javascript/LeetCode/Script/1957_DeleteCharactersToMakeFancyString.js)_**
 
 ### Cocos 便捷方法
 
