@@ -4,7 +4,6 @@
         "target": "ES2022", // 输出的 JS 版本，Node 16+ 均支持
         "module": "CommonJS", // package.json 未设置 "type": "module"，Node 按 CommonJS 加载
         "lib": ["ES2022", "DOM"], // 内置 API；DOM 提供 console / setTimeout 的类型（未安装 @types/node）
-        "moduleResolution": "Node",
         "esModuleInterop": true,
 
         /* 装饰器（SerializeDTO/02-DecoratorDTO.ts 需要） */

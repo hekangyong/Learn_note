@@ -69,7 +69,7 @@ async function simulatePayment(orderID: number) {
     return success
 }
 
-let orderMachine: StateMachine<OrderEvent, OrderEvent>
+let orderMachine: StateMachine<OrderState, OrderEvent>
 
 const orderTransitions: Partial<
     Record<OrderState, Partial<Record<OrderEvent, StateAction<OrderState>>>>

@@ -15,7 +15,7 @@
  *      再按配置把普通对象的值转换后赋进去 —— 这样方法 (prototype 上的) 就回来了。
  *
  * 注意：需要在 tsconfig 中开启 "experimentalDecorators": true
- * 运行：npx tsc SerializeDTO/02-DecoratorDTO.ts --target es2022 --module commonjs --experimentalDecorators --outDir dist && node dist/02-DecoratorDTO.js
+ * 运行：npx tsc --ignoreConfig SerializeDTO/02-DecoratorDTO.ts --target es2022 --module commonjs --experimentalDecorators --outDir dist && node dist/02-DecoratorDTO.js
  */
 
 // ------------------------------------------------------------

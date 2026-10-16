@@ -14,7 +14,7 @@
  *   3. 前后端字段命名常常不同（user_name vs userName），需要映射。
  *   4. 有些字段不应该被传出去（如 password）。
  *
- * 运行：npx tsc SerializeDTO/01-ManualDTO.ts --target es2022 --module commonjs --outDir dist && node dist/01-ManualDTO.js
+ * 运行：npx tsc --ignoreConfig SerializeDTO/01-ManualDTO.ts --target es2022 --module commonjs --outDir dist && node dist/01-ManualDTO.js
  */
 
 // ------------------------------------------------------------
