@@ -91,7 +91,43 @@ new TaskEntryController(entryView, tasks, redDot).start() // 主界面入口
 
 ---
 
-## 5. 换成真实项目时要改的地方
+## 5. 接入 WsProtoServer（`net/`）
+
+用 [WsProtoServer](../WsProtoServer/README.md)（WebSocket 长连接 + Protobuf + 心跳）替换 `FakeTaskServer`，**`TaskModel` 及以上各层一行不改**。
+
+| 文件 | 端 | 作用 |
+| --- | --- | --- |
+| `net/TaskModule.ts` | 服务端模块 | 按玩家保存任务；处理 `TASK_FETCH_REQ` / `TASK_CLAIM_REQ`（服务器校验领取，并调用 `WalletModule` 发金币）；订阅 `player:action` 事件或直接调用 `addProgress`，进度只推送给对应玩家；订阅 `session:login` 完成「每日登录」；跨天时推送 reset |
+| `net/WalletModule.ts` | 服务端模块 | 服务器端保存金币，`add` 后发出 `wallet:changed` 事件 |
+| `net/WsTaskApi.ts` | 客户端 | 用 `WsProtoClient` 实现 `TaskApi`；服务端错误信息直接作为界面提示；断线重连后重新拉取，以 `reset` 推送交给 `TaskModel` |
+| `net/test.ts` | — | 端到端测试：真实网络下的推送隔离、领取校验、跨天、断线重连，以及 ViewModel 一键领取 |
+
+协议在 `WsProtoServer/proto/message.proto` 的「每日任务」部分（`TaskInfo`、`TaskFetchRsp`、`TaskClaimReq/Rsp`、`TaskPush`）。
+
+```ts
+// 服务端：在统一入口（WsProtoServer/examples/server.ts）里注册
+app.register(new TaskModule(), new WalletModule())
+await app.start()
+app.events.emit('player:action', userId, 'battle', 1) // 战斗模块发事件，或者：
+app.get(TaskModule).addProgress(userId, 'battle')      // 直接调用
+
+// 客户端：只换 TaskApi 的实现
+const client = new WsProtoClient({ url, token })
+await client.connect()
+const tasks = new TaskModel(new WsTaskApi(client), wallet)
+```
+
+`net/` 依赖 `ws`，所以由 WsProtoServer 子项目检查和运行，上层 `tsconfig.json` 已经把它排除：
+
+```bash
+cd TypeScripts/WsProtoServer
+npm run typecheck
+npm run task:test
+```
+
+---
+
+## 6. 换成真实项目时要改的地方
 
 | 演示中的实现 | 真实项目 |
 | --- | --- |

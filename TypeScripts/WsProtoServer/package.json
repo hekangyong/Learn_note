@@ -1,0 +1,23 @@
+{
+  "name": "ws-proto-server",
+  "version": "1.0.0",
+  "description": "WebSocket 长连接 + Protobuf 数据同步服务端框架（含心跳检测）",
+  "scripts": {
+    "server": "tsx examples/server.ts",
+    "client": "tsx examples/client.ts",
+    "test": "tsx test/e2e.ts",
+    "typecheck": "tsc --noEmit",
+    "task:test": "tsx ../DailyTask/net/test.ts"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "protobufjs": "^7.4.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

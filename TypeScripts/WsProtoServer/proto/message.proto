@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package wsproto;
+
+// 命令号：Envelope.cmd 决定 payload 用哪个 message 解码
+// 注意：修改这里需要同步修改 src/protocol.ts 中的 Cmd / CMD_TYPE
+enum Cmd {
+  CMD_UNKNOWN = 0;
+
+  HEARTBEAT_PING = 1;
+  HEARTBEAT_PONG = 2;
+
+  LOGIN_REQ = 10;
+  LOGIN_RSP = 11;
+
+  SYNC_REQ = 20;   // 客户端拉取（全量 / 增量）
+  SYNC_RSP = 21;
+  UPDATE_REQ = 22; // 客户端提交修改
+  UPDATE_RSP = 23;
+  SYNC_PUSH = 24;  // 服务端推送增量
+
+  // 每日任务（DailyTask/net）
+  TASK_FETCH_REQ = 30;
+  TASK_FETCH_RSP = 31;
+  TASK_CLAIM_REQ = 32;
+  TASK_CLAIM_RSP = 33;
+  TASK_PUSH = 34;  // 进度变化 / 跨天重置
+
+  ERROR = 99;
+}
+
+// 所有帧的外层包装
+message Envelope {
+  Cmd cmd = 1;
+  uint32 seq = 2;     // 请求序号，响应原样带回；服务端主动推送为 0
+  bytes payload = 3;  // 内层 message 的二进制
+}
+
+message Ping {
+  int64 client_time = 1;
+}
+
+message Pong {
+  int64 client_time = 1;
+  int64 server_time = 2;
+}
+
+message LoginReq {
+  string token = 1;
+}
+
+message LoginRsp {
+  string user_id = 1;
+  string session_id = 2;
+  uint32 heartbeat_interval = 3; // 服务端下发的心跳间隔(ms)
+  int64 server_time = 4;
+}
+
+message Entry {
+  string key = 1;
+  string value = 2;
+  uint64 version = 3;
+  bool deleted = 4;
+}
+
+message SyncReq {
+  uint64 since_version = 1; // 客户端本地版本，0 表示全量
+}
+
+message SyncRsp {
+  uint64 version = 1;
+  repeated Entry entries = 2;
+  bool full = 3; // true: 客户端需先清空本地再应用
+}
+
+message UpdateReq {
+  repeated Entry entries = 1;
+}
+
+message UpdateRsp {
+  uint64 version = 1;
+}
+
+message SyncPush {
+  uint64 version = 1;
+  repeated Entry entries = 2;
+}
+
+// ---------------- 每日任务 ----------------
+
+message TaskInfo {
+  uint32 id = 1;
+  string title = 2;
+  string kind = 3;   // login / battle / shop / share
+  uint32 target = 4;
+  uint32 progress = 5;
+  uint32 reward = 6;
+  bool claimed = 7;
+}
+
+message TaskFetchReq {}
+
+message TaskFetchRsp {
+  repeated TaskInfo tasks = 1;
+  int64 reset_at = 2;
+}
+
+message TaskClaimReq {
+  repeated uint32 task_ids = 1;
+}
+
+message TaskClaimRsp {
+  repeated uint32 claimed = 1; // 实际领取成功的任务
+  uint32 gold = 2;
+}
+
+enum TaskPushType {
+  TASK_PUSH_PROGRESS = 0; // 部分任务进度变化
+  TASK_PUSH_RESET = 1;    // 跨天重置，整份替换
+}
+
+message TaskPush {
+  TaskPushType type = 1;
+  repeated TaskInfo tasks = 2;
+  int64 reset_at = 3;
+}
+
+message ErrorRsp {
+  int32 code = 1;
+  string message = 2;
+}
