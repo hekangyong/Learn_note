@@ -9,7 +9,7 @@ MVC ：View ─意图─> Controller ─调用─> Model ─变化─> Controlle
 MVVM：View <─绑定─ ViewModel（signal / computed / Command）─读取─> Model
 ```
 
-与旧版 `Popup/arch/` 的区别：旧版和弹窗系统绑在一起，依赖要手写列表，Computed 必须手动 dispose。新版是独立的通用框架，响应式内核自动收集依赖、没有毛刺、不会泄漏，并补齐了异步命令、错误边界和生命周期这些商用必需的部分。
+与旧版 `Popup/arch/Observable.ts`（已删除）的区别：旧版和弹窗系统绑在一起，依赖要手写列表，Computed 必须手动 dispose。新版是独立的通用框架，响应式内核自动收集依赖、没有毛刺、不会泄漏，并补齐了异步命令、错误边界和生命周期这些商用必需的部分。弹窗系统的 `MvcPopup` / `MvvmPopup` 现在就是基于本框架实现的，见 [Popup/README.md](../Popup/README.md) 第 10 节。
 
 ---
 

@@ -17,9 +17,8 @@
 | `Popup.ts` | 核心实现 `PopupSystem` 及全部类型定义。只有类，没有副作用，可在测试中随意 `new` |
 | `PopupManager.ts` | 全局单例 `popup`、弹窗数据类型表 `PopupDataMap`、优先级常量 `PopupPriority`、绑定到单例的装饰器 |
 | `PopupDecorators.ts` | 装饰器工厂 `createPopupDecorators`：`@PopupWindow` / `@Condition` / `@AfterTutorial` + 自动生成的视图适配器 |
-| `arch/Observable.ts` | 极简响应式工具：`Observable` / `Computed` / `Command` / `DisposeBag` |
-| `arch/MvcPopup.ts` | MVC 弹窗基类：把管理器生命周期适配成 Controller 模式 |
-| `arch/MvvmPopup.ts` | MVVM 弹窗基类：`PopupViewModel` + `MvvmView` + `MvvmPopup` |
+| `arch/MvcPopup.ts` | MVC 弹窗基类：继承 [MVVM_MVC](../MVVM_MVC/README.md) 的 `Controller`，把管理器生命周期映射为 start / stop / dispose |
+| `arch/MvvmPopup.ts` | MVVM 弹窗基类：`PopupViewModel`（继承框架的 `ViewModel`）+ `MvvmPopup`，View 直接使用框架的 `MvvmView` |
 | `demo.ts` | 演示：手动 `register` + 手写视图适配器，覆盖全部功能 |
 | `decoratorDemo.ts` | 演示：用装饰器注册弹窗 |
 | `archDemo.ts` | 演示：MVC 与 MVVM 两种写法的弹窗共存 |
@@ -34,6 +33,7 @@
                                                           │  PopupComponent 接口（onShow / onHide / onDispose）
                                               ┌───────────┴───────────┐
                                           MvcPopup                MvvmPopup
+                                              │  MVVM_MVC 框架（Model / Controller / ViewModel / 响应式内核）
 ```
 
 管理器只认识 `PopupView`，不关心 UI 如何渲染；装饰器层只认识 `PopupComponent`，不关心 UI 用什么架构写。
@@ -350,44 +350,62 @@ afterTutorial: (data, waited) =>
 
 ## 10. MVC / MVVM 适配（`arch/`）
 
-管理器只依赖 `PopupComponent` 接口，所以 UI 用什么架构写都可以。`MvcPopup` 和 `MvvmPopup` 是两个适配器基类，注册方式（`@PopupWindow`）和业务调用方式（`popup.open`）完全相同，Model 层两种写法共用。
+管理器只依赖 `PopupComponent` 接口，所以 UI 用什么架构写都可以。`MvcPopup` 和 `MvvmPopup` 是两个适配器基类，把管理器生命周期接到 [MVVM_MVC 框架](../MVVM_MVC/README.md) 上。注册方式（`@PopupWindow`）和业务调用方式（`popup.open`）完全相同，Model 层（继承框架的 `Model`）两种写法共用。
+
+响应式工具（`signal` / `computed` / `Command` / `AsyncCommand` / `DisposableStore`）全部来自框架，从 `'../MVVM_MVC'` 引用。
 
 ### MVC：`MvcPopup<D, V>`
 
-子类实现 `createView`、`onCreate`（绑定 View 事件、订阅 Model）、`render`（把数据推给 View），可选 `onDestroy`。
+`MvcPopup` 继承框架的 `Controller<V>`。View 继承框架的 `MvcView<意图表>`，用 `this.emit(...)` 发出用户意图。
+
+```ts
+class RewardView extends MvcView<{ claim: [] }> { ... }
+
+@PopupWindow('Reward', { priority: PopupPriority.Reward })
+class RewardPopup extends MvcPopup<RewardData, RewardView> {
+    constructor() { super(new RewardView()) }      // 管理器负责 new，构造函数不能有参数
+    protected onStart() {
+        this.listen('claim', () => { player.addItem(...); this.close('claimed') })
+        this.observe(player.gold, () => this.render(), { immediate: true })
+    }
+}
+```
 
 | 管理器回调 | MvcPopup 内部 |
 | --- | --- |
-| `onShow`（首次） | `createView` → `onCreate` → `render` → `view.show` |
-| `onShow`（恢复） | `render` → `view.show` |
-| `onHide` | `view.hide` |
-| `onDispose` | `onDestroy` → 释放订阅（`disposables`） → `view.destroy` |
+| `onShow`（首次 / 恢复） | 保存 `data`、`close` → `start()` → `view.mount()` → `onStart()` |
+| `onHide` | `stop()` → 释放 `listen` / `observe` → `view.unmount()` |
+| `onDispose` | `dispose()` → `onDispose()` → `view.dispose()` |
 
-数据流是**命令式**的：Controller 收到 Model 变化后主动调用 `render`。
+数据流是**命令式**的：Controller 观察到 Model 变化后主动调用 View。恢复显示时 `observe(..., { immediate: true })` 会立刻按最新数据刷新，隐藏期间错过的变化不会丢。意图处理（包括 async）抛出的错误统一进入 `onError`。
 
 ### MVVM：`MvvmPopup<D, VM, V>`
 
-- `PopupViewModel<D>`：实现 `onInit(data)`，用 `Observable` / `Computed` 表示状态、`Command` 表示操作，可选 `onActive` / `onInactive` / `onDispose`；用 `track()` 登记需要释放的 `Computed`。
-- `MvvmView<VM>`：实现 `bind(vm)`、`show`、`hide`，用 `bindValue` / `bindCommand` 绑定。
+- `PopupViewModel<D>`：继承框架的 `ViewModel`。实现 `onInit(data)`，用 `signal` / `computed` 表示状态，用 `this.command` / `this.asyncCommand` 表示操作，用 `this.close(result)` 关闭弹窗。可选重写 `onActivate` / `onDeactivate` / `onDispose`，只在显示期间需要的资源登记到 `activeDisposables`。
+- View：直接继承框架的 `MvvmView<VM>`，在 `onBind(vm)` 中用 `bind` / `bindCommand` / `bindTwoWay` 绑定。
 - `MvvmPopup`：实现 `createViewModel`、`createView`，负责组装。
 
 | 管理器回调 | MvvmPopup 内部 |
 | --- | --- |
-| `onShow`（首次） | `createViewModel` → `vm.init` → `createView` → `view.bind(vm)` → `vm.onActive` → `view.show` |
-| `onShow`（恢复） | `vm.onActive` → `view.show`（状态保留在 VM 中） |
-| `onHide` | `view.hide` → `vm.onInactive`（例如暂停倒计时） |
-| `onDispose` | `view.destroy`（先解除绑定）→ `vm.dispose` |
+| `onShow`（首次） | `createViewModel` → `vm.init(data, close)` → `createView` → `view.mount(vm)`（`vm.activate` → `onBind`） |
+| `onShow`（恢复） | `view.mount(vm)`（状态保留在 VM 中，重新绑定后立即显示最新状态） |
+| `onHide` | `view.unmount()`（解除绑定 → `vm.deactivate`，例如暂停倒计时） |
+| `onDispose` | `view.dispose()`（先解除绑定）→ `vm.dispose()`（取消进行中的异步命令） |
 
-数据流是**声明式**的：ViewModel 只改状态，View 通过绑定自动刷新；ViewModel 不引用 View，可以脱离 UI 单测。
+数据流是**声明式**的：ViewModel 只改状态，View 通过绑定自动刷新；ViewModel 不引用 View，可以脱离 UI 单测。`AsyncCommand` 默认的 `drop` 策略让请求进行中的按钮自动置灰，防止重复购买。
 
-### 响应式工具（`arch/Observable.ts`）
+### 从旧版迁移
 
-| 类 | 说明 |
+| 旧版（`arch/Observable.ts`，已删除） | 新版（MVVM_MVC 框架） |
 | --- | --- |
-| `Observable<T>` | 可观察值，值相同（默认 `Object.is`）不通知；`subscribe(listener, immediate = true)` |
-| `Computed<T>` | 派生值，**显式声明依赖**（不做自动依赖收集），用完必须 `dispose` |
-| `Command<A>` | 封装用户操作 + `canExecute` 可观察状态；不可执行时 `execute` 返回 `false` |
-| `DisposeBag` | 收集取消函数，`dispose` 时一次性释放 |
+| `new Observable(v)` | `signal(v)` |
+| `new Computed([deps], fn)` + `track()` | `computed(fn)`，依赖自动收集，不需要 dispose |
+| `new Command(fn, canExecute)`，返回 `boolean` | `this.command(fn, { canExecute })`，返回 `{ ok, ... }` |
+| `DisposeBag` | `DisposableStore` |
+| MVC：`createView` / `onCreate` / `render` / `onDestroy` | 构造函数 `super(new View())` / `onStart` / 自己的 `render` / `onDispose` |
+| MVC View：实现 `show` / `hide` / `destroy` | 继承 `MvcView`，重写 `onMount` / `onUnmount` / `onDispose` |
+| MVVM：`onActive` / `onInactive` | `onActivate` / `onDeactivate` |
+| MVVM View：`bind(vm)` + `show` / `hide`，`bindValue` | `onBind(vm)` / `onUnbind`，`bind` |
 
 ---
 

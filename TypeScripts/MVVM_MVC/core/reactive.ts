@@ -7,7 +7,7 @@
  *   batch     批量修改，结束后统一触发一次 effect
  *   untracked 读取但不建立依赖
  *
- * 与旧版 Popup/arch/Observable.ts 相比，解决了商用场景下的几个问题：
+ * 与旧版 Popup/arch/Observable.ts（已删除）相比，解决了商用场景下的几个问题：
  *   1. 自动依赖收集：不用手写依赖列表，也支持「条件分支里才读到的依赖」（动态依赖）；
  *   2. 无毛刺（glitch-free）：菱形依赖 a -> b,c -> d 修改 a 时 d 只计算一次，不会读到中间状态；
  *   3. 惰性 + 自动脱离：没有被任何 effect 使用的 computed 不会订阅上游，
