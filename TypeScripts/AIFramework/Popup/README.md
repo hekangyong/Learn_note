@@ -131,7 +131,8 @@ popup.setView(popupView)   // UI 启动时调用一次
 | `unique` | `'data' \| 'type' \| 'none'` | `'data'` | 去重方式，见第 7 节 |
 | `onDuplicate` | `'ignore' \| 'replace'` | `'ignore'` | 发现重复时保留旧的，还是用新的替换排队中的旧的 |
 | `dataKey` | `(data) => string` | 稳定序列化 | 自定义去重 key（数据含 Map/Set/类实例，或只按 id 去重时使用） |
-| `preempt` | `boolean` | `false` | 能否抢占正在显示的、优先级**更低**的弹窗 |
+| `layer` | `string` | `'main'` | 所在的层。每层独立排队、有自己的容量，见 [5.6](#56-多弹窗共存层) |
+| `preempt` | `boolean` | `false` | 所在层已满时，能否抢占该层正在显示的、优先级**更低**的弹窗 |
 | `ttl` | `number`（毫秒） | 无 | 排队超时：入队后超过该时间仍未弹出则丢弃；显示过的弹窗不受影响 |
 | `afterTutorial` | `(data, waited) => boolean` | 全部保留 | 引导结束时，被引导拦下的弹窗是否还要弹，`false` 丢弃 |
 
@@ -150,12 +151,13 @@ popup.setView(popupView)   // UI 启动时调用一次
 ### 构造
 
 ```ts
-new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now, { showTimeout = 10_000 } = {})
+new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now, { showTimeout = 10_000, layers = {} } = {})
 ```
 
 - `scheduler`：何时执行挑选。默认微任务——同一段同步代码里的多个 `open` 先全部入队，再统一按优先级挑选。
 - `now`：时间来源，测试 `ttl` 时可以传入假时钟。
 - `showTimeout`：异步 `view.show` 最长等待时间，超时视为显示失败（见 [5.5](#55-异步创建)）。
+- `layers`：各层容量（同时显示的最大数量），未列出的层为 1，可以填 `Infinity`（见 [5.6](#56-多弹窗共存层)）。
 
 ### 方法
 
@@ -165,15 +167,17 @@ new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now, { showTimeout = 1
 | `register(type, config)` | 注册配置；重复注册覆盖旧配置（只影响之后 `open` 的弹窗）。返回 `this` 可链式调用 |
 | `open(type, data)` | 请求打开，返回 `OpenResult`。未注册的类型直接抛异常（开发期错误，尽早暴露） |
 | `close(id, result?)` | 显示中的 → `hide` 并以 `closed` 结束；排队中的 → 以 `cancelled` 结束。返回弹窗是否存在 |
-| `closeAll()` | 关闭全部（切换账号、回登录界面） |
+| `closeAll(layer?)` | 关闭全部（切换账号、回登录界面）；传入 `layer` 只关闭该层 |
 | `setTutorial(active, step = 0)` | 设置新手引导状态与当前步骤 |
-| `pause()` / `resume()` | 暂停/恢复弹出（加载、战斗、过场）。已显示的不受影响 |
+| `pause(layer?)` / `resume(layer?)` | 暂停/恢复弹出（加载、战斗、过场）。已显示的不受影响；传入 `layer` 只暂停/恢复该层，`resume()` 恢复全部 |
 | `refresh()` | 外部状态变化后通知重新检查条件，让被 `wait` 卡住的弹窗有机会弹出 |
-| `currentPopup` | 当前显示的弹窗信息或 `null` |
+| `currentPopup` | 最上层（最后显示）的弹窗或 `null`；只用 `main` 层时就是当前弹窗 |
+| `currentPopupOf(layer?)` | 某一层最上层的弹窗或 `null` |
+| `showingPopups` | 所有正在显示的弹窗，按显示先后排列（最后一个在最上层） |
 | `queuedPopups` | 排队中的弹窗（按弹出顺序），用于调试面板 |
 | `has(id)` | 弹窗是否还存在（排队中或显示中） |
-| `loadingPopup` | 正在异步加载的当前弹窗或 `null` |
-| `onLoadingChange(fn)` | 订阅加载状态：开始时回调弹窗信息，结束时回调 `null`，用于加载遮罩。返回取消函数 |
+| `loadingPopups` | 正在异步加载的弹窗 |
+| `onLoadingChange(fn)` | 订阅加载状态：有弹窗开始或结束加载时，回调正在加载的全部弹窗，用于加载遮罩。返回取消函数 |
 
 ### `open` 的返回值
 
@@ -207,7 +211,7 @@ if (r.ok) {
 
 | 方法 | 调用时机 | UI 需要保证 |
 | --- | --- | --- |
-| `show(info, signal)` | 弹出；被抢占/被引导收起后**恢复时会再次调用**。可以返回 Promise（异步创建） | 支持同一个弹窗多次 `show`；异步时完成前检查 `signal.aborted`，被取消就不显示 |
+| `show(info, signal)` | 弹出；被抢占/被引导收起后**恢复时会再次调用**。可以返回 Promise（异步创建） | 支持同一个弹窗多次 `show`；异步时完成前检查 `signal.aborted`，被取消就不显示；按 `info.layer` 放到对应的层节点，后显示的在上面 |
 | `hide(info)` | 关闭、被抢占、引导开始被收起 | 可以重复调用 |
 | `dispose?(info)` | 显示过的弹窗彻底结束（在 `hide` 之后），之后不会再 `show` | 在这里释放 UI 实例 |
 
@@ -241,19 +245,21 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
 - 好处一：**批量合并**。先 `open` 公告、再 `open` 升级，仍然先弹升级。
 - 好处二：**避免重入**。UI 在 `show` 回调里同步调用 `close` 时，不会在管理器状态更新到一半时再次进入挑选逻辑。
 
-`pump` 的流程（`Popup.ts:505`）：
+`pump` 的流程（`Popup.ts:552`）：
 
 1. 没有 `view` → 直接返回。
-2. 引导进行中且有弹窗正在显示 → 用新手策略重新检查它：
+2. 引导进行中 → 用新手策略重新检查**所有层**正在显示的弹窗：
    `defer`/`wait` → 收起放回队列并标记 `blockedByTutorial`；`drop` → 丢弃。
-3. 暂停中 → 到此为止，不弹出新的。
-4. 从队首开始遍历队列：
+3. 全部暂停中 → 到此为止，不弹出新的。
+4. 从队首开始遍历整个队列：
    1. 未显示过且超过 `ttl` → 移除，`expired`；
-   2. 有弹窗在显示时，只有**优先级更高且 `preempt: true`** 的才有资格。由于队列有序，遇到优先级 ≤ 当前的就可以直接 `break`；
-   3. `evaluate`（新手策略 → 各个条件）：`wait` 跳过看下一个，`drop` 移除，`show` 进入下一步；
-   4. `display` 显示，**一次 pump 最多显示一个**。
+   2. 所在层被单独暂停 → 跳过；
+   3. 所在层已满 → 只有 **`preempt: true` 且优先级高于该层显示中最低的** 才有资格，否则跳过（不 `break`：后面可能是其他层的弹窗）；
+   4. `evaluate`（新手策略 → 各个条件）：`wait` 跳过看下一个，`drop` 移除，`show` 进入下一步；
+   5. 如果是抢占，先 `suspend` 该层最低的那个；然后 `display`，**继续遍历**，同一次 pump 可以在各层填满空位。
 
-`display`（`Popup.ts:568`）：如果是抢占，先 `hide` 当前弹窗并以**原 `seq`** 插回队列，因此恢复时它仍排在同优先级后来者前面。
+`suspend`（`Popup.ts:622`）：`hide` 被挤掉的弹窗并以**原 `seq`** 插回队列，因此恢复时它仍排在同优先级后来者前面。
+它的优先级比抢占者低，插回的位置一定在当前遍历位置之后，本轮后面还会检查到它（层仍是满的，所以会继续排队）。
 
 ### 5.3 队列实现
 
@@ -266,11 +272,11 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
 | 字段 | 作用 |
 | --- | --- |
 | `queue` | 排队中的记录，始终有序 |
-| `current` | 正在显示的记录（最多一个） |
+| `showing` | 正在显示的记录，按显示先后排列（最后一个在最上层）；每层数量不超过该层容量 |
 | `records` | `id → 记录`，排队中 + 显示中，用于 `close(id)` |
 | `dedup` | `去重 key → 记录`，排队中 + 显示中 |
 
-所有「弹窗彻底结束」都走 `finish()`（`Popup.ts:745`）：清理 `records` 和 `dedup`、对显示过的弹窗调用 `view.dispose`、完成 `closed` Promise。
+所有「弹窗彻底结束」都走 `finish()`（`Popup.ts:826`）：清理 `records` 和 `dedup`、对显示过的弹窗调用 `view.dispose`、完成 `closed` Promise。
 
 ### 5.5 异步创建
 
@@ -302,8 +308,35 @@ class ShopPopup implements PopupComponent<PopupDataMap['Shop']> {
 加载中屏幕上什么都没有，玩家可能点穿到下层界面，可以用加载状态显示遮罩：
 
 ```ts
-popup.onLoadingChange(info => loadingMask.setVisible(info !== null))
+// 只有 main 层的弹窗加载时才需要遮罩，toast 之类不挡操作
+popup.onLoadingChange(list => loadingMask.setVisible(list.some(p => p.layer === 'main')))
 ```
+
+### 5.6 多弹窗共存（层）
+
+默认所有弹窗都在 `main` 层，容量 1，即「同一时刻只显示一个」。需要共存的弹窗放到其他层：
+
+```ts
+const popup = new PopupSystem<PopupDataMap>(undefined, undefined, {
+    layers: { main: 1, toast: 3, overlay: Infinity },   // 未列出的层容量为 1
+})
+popup.register('Reward', { priority: 200 })                        // main：模态，一次一个
+popup.register('Tips',   { priority: 10, layer: 'toast' })          // 最多同时 3 条
+popup.register('BigTip', { priority: 90, layer: 'toast', preempt: true })
+popup.register('Confirm', { priority: 500, layer: 'overlay' })      // 叠在任何弹窗上，不限数量
+```
+
+| 规则 | 说明 |
+| --- | --- |
+| 层与层互不阻塞 | `main` 有弹窗显示时，`toast` 层照常弹出；一层满了只影响这一层 |
+| 层内仍按优先级排队 | 空位出现时，该层队列里优先级最高的先上 |
+| 抢占只发生在层内 | 层满且 `preempt: true`、优先级高于该层显示中最低的 → 挤掉最低的（相同优先级时最后显示的先让位），它回到队列，之后自动恢复 |
+| 去重、新手策略、弹出条件、`ttl`、异步创建 | 对每个弹窗照常生效，与层无关；引导开始时检查**所有层**正在显示的弹窗 |
+| 按层控制 | `pause('main')`（战斗中只停模态弹窗）、`closeAll('toast')`、`currentPopupOf('main')` |
+
+UI 侧：每层对应一个节点，`show` 时按 `info.layer` 挂到对应节点，同层后显示的在上面；层与层之间的上下关系（如 `overlay` 在 `main` 之上）由 UI 固定。
+
+> 「随父弹窗一起关闭」的子弹窗（例如商店里点开的道具详情）不在层的职责里：需要的话在父弹窗的 `onHide` / `onDispose` 中关闭自己打开的子弹窗。
 
 ---
 
@@ -324,7 +357,7 @@ popup.onLoadingChange(info => loadingMask.setVisible(info !== null))
 - **引导结束**（只在「进行中 → 结束」那一刻）：同步执行 `checkAfterTutorial`，对标记过的记录调用 `afterTutorial(data, waited)`，返回 `false` 的立即以 `dropped` 结束。同步执行是为了让被丢弃的弹窗没有机会先弹出来。
 - 之后再 `schedule`，按优先级依次弹出剩下的。
 
-为什么在 `open` / `setTutorial` 中打标记，而不是在 `evaluate` 中？因为有弹窗正在显示时，低优先级弹窗根本走不到 `evaluate`，会漏标（见 `Popup.ts:680` 的注释）。
+为什么在 `open` / `setTutorial` 中打标记，而不是在 `evaluate` 中？因为有弹窗正在显示时，低优先级弹窗根本走不到 `evaluate`，会漏标（见 `Popup.ts:762` 的注释）。
 
 `afterTutorial` 的典型用法：
 

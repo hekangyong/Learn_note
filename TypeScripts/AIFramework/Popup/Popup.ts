@@ -14,23 +14,25 @@
  * ============================================================
  * 二、核心能力
  * ============================================================
- *   1. 优先级队列：同一时刻只显示一个弹窗；priority 大的先弹，相同优先级先来先弹。
+ *   1. 优先级队列：priority 大的先弹，相同优先级先来先弹。
  *      同一段同步代码里的 open 会先合并再挑选（微任务调度），保证不会因为调用顺序先弹出低优先级的。
- *   2. 抢占：配置了 preempt 的高优先级弹窗可以把正在显示的弹窗「收起」，
+ *   2. 层：每个弹窗属于一个层（默认 main），每层有容量（默认 1，即同一时刻只显示一个）。
+ *      层与层互不阻塞，需要共存的弹窗（提示、飘字、确认框）放到容量更大的层。
+ *   3. 抢占：层满时，配置了 preempt 的高优先级弹窗可以把该层优先级最低的弹窗「收起」，
  *      被收起的弹窗回到队列，之后自动恢复显示。
- *   3. 新手模式：每种弹窗声明自己在新手引导期间的策略：
+ *   4. 新手模式：每种弹窗声明自己在新手引导期间的策略：
  *        allow 可以弹 / defer 等引导结束再弹 / drop 直接丢弃 / 函数 按引导步骤判断。
  *      引导开始时，正在显示的不允许弹出的弹窗会被收起（或丢弃）。
  *      引导结束时，对「被引导拦下」的弹窗调用 afterTutorial 再判断一次是否还需要弹出
  *      （例如引导期间获得的新手奖励，引导里已经展示过了，结束后就不用再弹）。
- *   4. 弹出条件：每种弹窗可以配置任意多个条件（等级、是否在战斗中……），
+ *   5. 弹出条件：每种弹窗可以配置任意多个条件（等级、是否在战斗中……），
  *      每个条件返回 show 可以弹 / wait 暂不弹、继续排队 / drop 丢弃。
  *      被 wait 卡住的弹窗不会阻塞后面的弹窗。
- *   5. 去重：同类型 + 同数据的弹窗（排队中或显示中）不会被重复打开。
+ *   6. 去重：同类型 + 同数据的弹窗（排队中或显示中）不会被重复打开。
  *      数据比较与对象的 key 顺序无关；也可以按类型去重，或自定义去重 key。
- *   6. 异步创建：view.show 可以返回 Promise（加载预制体、图集……），加载期间被关闭 / 抢占 / 引导收起时
+ *   7. 异步创建：view.show 可以返回 Promise（加载预制体、图集……），加载期间被关闭 / 抢占 / 引导收起时
  *      通过 AbortSignal 通知 UI 不要再显示；加载失败或超时丢弃该弹窗，队列不会卡死。
- *   7. 其他：排队超时 ttl、暂停/恢复（加载、战斗中）、关闭全部、异常隔离、
+ *   8. 其他：排队超时 ttl、暂停/恢复（可按层）、关闭全部（可按层）、异常隔离、
  *      open 返回 Promise 可以等待弹窗关闭并拿到结果。
  *
  * ============================================================
@@ -123,7 +125,12 @@ export interface PopupConfig<D> {
      * 数据里有 Map/Set/类实例、或者只想按部分字段（如 id）去重时使用。
      */
     dataKey?: (data: D) => string
-    /** 是否可以抢占正在显示的、优先级更低的弹窗 */
+    /**
+     * 所在的层，默认 'main'。每层有自己的容量（同时显示的数量，见 PopupSystemOptions.layers），
+     * 层与层之间互不阻塞：例如 main 一次一个模态弹窗，toast 层同时显示多条提示。
+     */
+    layer?: string
+    /** 所在层已满时，是否可以抢占该层正在显示的、优先级更低的弹窗 */
     preempt?: boolean
     /** 排队超时（毫秒）：入队后超过这个时间还没弹出就丢弃。已经显示过的弹窗不受影响 */
     ttl?: number
@@ -144,6 +151,8 @@ export interface PopupInfo<K = string, D = unknown> {
     readonly type: K
     readonly data: D
     readonly priority: number
+    /** 所在的层：UI 据此把弹窗放到对应的节点 / z 序上 */
+    readonly layer: string
 }
 
 /**
@@ -199,9 +208,17 @@ export type OpenResult =
 /** 调度器：决定什么时候挑选下一个弹窗。默认微任务 */
 export type Scheduler = (task: () => void) => void
 
+/** 默认层：没有配置 layer 的弹窗都在这里 */
+export const DEFAULT_LAYER = 'main'
+
 export interface PopupSystemOptions {
     /** view.show 返回的 Promise 最长等待时间（毫秒），超时视为显示失败。默认 10 秒 */
     showTimeout?: number
+    /**
+     * 各层的容量（同时显示的最大数量），未列出的层容量为 1。可以填 Infinity 表示不限。
+     * 例如 { main: 1, toast: 3, overlay: Infinity }
+     */
+    layers?: Record<string, number>
 }
 
 /** 内部记录，比 PopupInfo 多了排队和去重需要的信息 */
@@ -290,19 +307,23 @@ export class PopupSystem<M extends object> {
     /** 去重 key -> 记录，包含排队中和显示中的弹窗 */
     private readonly dedup = new Map<string, PopupRecord>()
 
-    /** 当前正在显示的弹窗，同一时刻最多一个 */
-    private current: PopupRecord | null = null
+    /** 正在显示的弹窗，按显示先后排列（最后一个在最上层）。每层的数量不超过该层容量 */
+    private readonly showing: PopupRecord[] = []
 
     private view: PopupView<M> | null = null
     private tutorialActive = false
     private tutorialStep = 0
+    /** 全部暂停 */
     private paused = false
+    /** 单独暂停的层 */
+    private readonly pausedLayers = new Set<string>()
     /** 是否已经调度过 pump，保证同一批操作只挑选一次 */
     private scheduled = false
     private nextId = 1
     private nextSeq = 0
     private readonly showTimeout: number
-    private readonly loadingListeners = new Set<(popup: AnyPopupInfo<M> | null) => void>()
+    private readonly layerCapacity: Record<string, number>
+    private readonly loadingListeners = new Set<(loading: AnyPopupInfo<M>[]) => void>()
 
     /**
      * @param scheduler 挑选弹窗的时机。默认微任务：同一段同步代码里的所有 open 先全部入队，
@@ -315,6 +336,7 @@ export class PopupSystem<M extends object> {
         options: PopupSystemOptions = {}
     ) {
         this.showTimeout = options.showTimeout ?? 10_000
+        this.layerCapacity = { ...options.layers }
     }
 
     // ---------------- 配置 ----------------
@@ -351,7 +373,7 @@ export class PopupSystem<M extends object> {
             if (existing) {
                 // 只替换还在排队、且从未显示过的；显示中（含被抢占收起的）不打断
                 const replaceable =
-                    config.onDuplicate === 'replace' && existing !== this.current && !existing.shown
+                    config.onDuplicate === 'replace' && !this.isShowing(existing) && !existing.shown
                 if (!replaceable) {
                     return { ok: false, reason: 'duplicate', existingId: existing.info.id }
                 }
@@ -364,7 +386,7 @@ export class PopupSystem<M extends object> {
         let resolve!: (result: CloseResult) => void
         const closed = new Promise<CloseResult>(r => (resolve = r))
         const record: PopupRecord = {
-            info: { id: this.nextId++, type, data, priority: config.priority },
+            info: { id: this.nextId++, type, data, priority: config.priority, layer: config.layer ?? DEFAULT_LAYER },
             config,
             dedupKey,
             seq: this.nextSeq++,
@@ -386,7 +408,7 @@ export class PopupSystem<M extends object> {
 
     /**
      * 关闭弹窗。
-     *   - 显示中的：调用 view.hide，结束原因为 closed，然后自动弹出下一个；
+     *   - 显示中的：调用 view.hide，结束原因为 closed，然后自动弹出该层的下一个；
      *   - 排队中的：直接从队列移除，结束原因为 cancelled。
      * @param result 透传给 closed Promise 的结果
      * @returns 弹窗是否存在
@@ -395,8 +417,8 @@ export class PopupSystem<M extends object> {
         const record = this.records.get(id)
         if (!record) return false
 
-        if (record === this.current) {
-            this.current = null
+        if (this.isShowing(record)) {
+            this.removeFromShowing(record)
             this.safeHide(record)
             this.finish(record, { reason: 'closed', result })
         } else {
@@ -407,13 +429,15 @@ export class PopupSystem<M extends object> {
         return true
     }
 
-    /** 关闭全部弹窗（例如切换账号、返回登录界面） */
-    closeAll(): void {
-        // 拷贝一份再遍历：finish 不会修改 queue，但这样写更不容易出错
-        for (const record of this.queue.splice(0)) {
+    /** 关闭全部弹窗（例如切换账号、返回登录界面）；传入 layer 时只关闭该层 */
+    closeAll(layer?: string): void {
+        const inLayer = (r: PopupRecord) => layer === undefined || r.info.layer === layer
+        for (const record of this.queue.filter(inLayer)) {
+            this.removeFromQueue(record)
             this.finish(record, { reason: 'cancelled' })
         }
-        if (this.current) this.close(this.current.info.id)
+        // 从上往下关闭
+        for (const record of this.showing.filter(inLayer).reverse()) this.close(record.info.id)
     }
 
     // ---------------- 状态控制 ----------------
@@ -437,13 +461,23 @@ export class PopupSystem<M extends object> {
         this.schedule()
     }
 
-    /** 暂停弹出（加载中、战斗中、过场动画……）。已经显示的弹窗不受影响，新的弹窗只排队 */
-    pause(): void {
-        this.paused = true
+    /**
+     * 暂停弹出（加载中、战斗中、过场动画……）。已经显示的弹窗不受影响，新的弹窗只排队。
+     * 传入 layer 时只暂停该层，例如战斗中暂停 main，toast 照常弹出。
+     */
+    pause(layer?: string): void {
+        if (layer === undefined) this.paused = true
+        else this.pausedLayers.add(layer)
     }
 
-    resume(): void {
-        this.paused = false
+    /** 恢复弹出。不传 layer 时恢复全部（包括单独暂停的层） */
+    resume(layer?: string): void {
+        if (layer === undefined) {
+            this.paused = false
+            this.pausedLayers.clear()
+        } else {
+            this.pausedLayers.delete(layer)
+        }
         this.schedule()
     }
 
@@ -458,9 +492,23 @@ export class PopupSystem<M extends object> {
 
     // ---------------- 查询 ----------------
 
-    /** 当前正在显示的弹窗 */
+    /** 最上层（最后显示）的弹窗；传入 layer 时只看该层 */
+    currentPopupOf(layer?: string): AnyPopupInfo<M> | null {
+        for (let i = this.showing.length - 1; i >= 0; i--) {
+            const record = this.showing[i]!
+            if (layer === undefined || record.info.layer === layer) return record.info as AnyPopupInfo<M>
+        }
+        return null
+    }
+
+    /** 最上层（最后显示）的弹窗。只用 main 层时就是「当前弹窗」 */
     get currentPopup(): AnyPopupInfo<M> | null {
-        return (this.current?.info as AnyPopupInfo<M> | undefined) ?? null
+        return this.currentPopupOf()
+    }
+
+    /** 所有正在显示的弹窗，按显示先后排列（最后一个在最上层） */
+    get showingPopups(): AnyPopupInfo<M>[] {
+        return this.showing.map(r => r.info as AnyPopupInfo<M>)
     }
 
     /** 排队中的弹窗（按弹出顺序），用于调试面板 */
@@ -473,18 +521,18 @@ export class PopupSystem<M extends object> {
         return this.records.has(id)
     }
 
-    /** 正在异步加载（view.show 的 Promise 还没完成）的当前弹窗，没有时为 null */
-    get loadingPopup(): AnyPopupInfo<M> | null {
-        const current = this.current
-        return current?.loading ? (current.info as AnyPopupInfo<M>) : null
+    /** 正在异步加载（view.show 的 Promise 还没完成）的弹窗 */
+    get loadingPopups(): AnyPopupInfo<M>[] {
+        return this.showing.filter(r => r.loading).map(r => r.info as AnyPopupInfo<M>)
     }
 
     /**
-     * 订阅加载状态：开始加载时回调弹窗信息，加载结束（完成 / 失败 / 被取消）时回调 null。
-     * 用于显示加载遮罩：加载期间挡住点击，避免玩家点穿到下层界面。
+     * 订阅加载状态：有弹窗开始或结束加载（完成 / 失败 / 被取消）时，回调当前正在加载的全部弹窗。
+     * 用于显示加载遮罩：列表不为空时挡住点击，避免玩家点穿到下层界面；
+     * 可以只看某些层，例如 toast 层加载时不需要遮罩。
      * @returns 取消订阅
      */
-    onLoadingChange(listener: (popup: AnyPopupInfo<M> | null) => void): () => void {
+    onLoadingChange(listener: (loading: AnyPopupInfo<M>[]) => void): () => void {
         this.loadingListeners.add(listener)
         return () => this.loadingListeners.delete(listener)
     }
@@ -498,20 +546,21 @@ export class PopupSystem<M extends object> {
     }
 
     /**
-     * 挑选下一个要显示的弹窗。
+     * 挑选要显示的弹窗。
      * 由 schedule 统一触发：open/close/状态变化都只是 schedule，真正的挑选只在这里发生，
      * 避免在 view 的回调里重入（例如 UI 在 show 里同步调用 close）。
+     * 各层独立：一层满了只影响这一层，一次 pump 可以在不同的层各显示若干个弹窗。
      */
     private pump(): void {
         this.scheduled = false
         if (!this.view) return
 
         // 引导开始时，检查正在显示的弹窗是否还允许显示
-        if (this.current && this.tutorialActive) {
-            const verdict = this.checkTutorial(this.current)
-            if (verdict !== 'show') {
-                const record = this.current
-                this.current = null
+        if (this.tutorialActive) {
+            for (const record of [...this.showing]) {
+                const verdict = this.checkTutorial(record)
+                if (verdict === 'show') continue
+                this.removeFromShowing(record)
                 this.safeHide(record)
                 if (verdict === 'drop') {
                     this.finish(record, { reason: 'dropped' })
@@ -528,6 +577,7 @@ export class PopupSystem<M extends object> {
         const now = this.now()
         for (let i = 0; i < this.queue.length; ) {
             const record = this.queue[i]!
+            const layer = record.info.layer
 
             // 1. 排队超时：已经显示过的（被抢占收起的）不受影响
             if (!record.shown && record.config.ttl !== undefined && now - record.enqueuedAt > record.config.ttl) {
@@ -536,17 +586,23 @@ export class PopupSystem<M extends object> {
                 continue // 删除后 i 不变，下一个元素已经移到了 i
             }
 
-            // 2. 有弹窗正在显示时，只有「可抢占且优先级更高」的才有资格
-            if (this.current) {
-                // 队列有序：后面的优先级只会更低或相等，直接结束
-                if (record.info.priority <= this.current.info.priority) break
-                if (!record.config.preempt) {
+            // 2. 该层被单独暂停
+            if (this.pausedLayers.has(layer)) {
+                i++
+                continue
+            }
+
+            // 3. 该层已满：只有「可抢占且比该层最低优先级更高」的才有资格，挤掉那个最低的
+            let victim: PopupRecord | null = null
+            if (this.showingIn(layer).length >= this.capacityOf(layer)) {
+                victim = record.config.preempt ? this.lowestIn(layer) : null
+                if (!victim || record.info.priority <= victim.info.priority) {
                     i++
                     continue
                 }
             }
 
-            // 3. 新手策略 + 弹出条件
+            // 4. 新手策略 + 弹出条件
             const verdict = this.evaluate(record)
             if (verdict === 'wait') {
                 i++ // 留在队列，不阻塞后面的弹窗
@@ -558,22 +614,21 @@ export class PopupSystem<M extends object> {
                 continue
             }
 
-            // 4. 显示。一次 pump 最多显示一个弹窗
+            // 5. 显示。被挤掉的弹窗优先级更低，插回的位置一定在 i 之后，本轮后面还会再检查到它
+            if (victim) this.suspend(victim)
             this.display(record)
-            return
         }
     }
 
-    /** 显示弹窗；如果有正在显示的弹窗（抢占），先把它收起放回队列 */
-    private display(record: PopupRecord): void {
-        if (this.current) {
-            const suspended = this.current
-            this.safeHide(suspended)
-            // 保留原 seq 重新插入：恢复时仍排在同优先级后来者的前面
-            this.insert(suspended)
-        }
+    /** 收起显示中的弹窗放回队列（被抢占）；保留原 seq：恢复时仍排在同优先级后来者的前面 */
+    private suspend(record: PopupRecord): void {
+        this.removeFromShowing(record)
+        this.safeHide(record)
+        this.insert(record)
+    }
 
-        this.current = record
+    private display(record: PopupRecord): void {
+        this.showing.push(record)
         record.shown = true
         const controller = new AbortController()
         let pending: void | Promise<void>
@@ -585,10 +640,10 @@ export class PopupSystem<M extends object> {
         }
         if (!pending || typeof pending.then !== 'function') return
 
-        // 异步显示：等待期间仍是当前弹窗；每次 show 有自己的 controller，
+        // 异步显示：等待期间仍占着该层的位置；每次 show 有自己的 controller，
         // 被 hide 取消（abort）后，旧的 Promise 不管成功还是失败都不再处理
         record.loading = controller
-        this.emitLoading(record)
+        this.emitLoading()
         const timer = setTimeout(() => {
             if (controller.signal.aborted) return
             controller.abort()
@@ -612,16 +667,16 @@ export class PopupSystem<M extends object> {
     private failShow(record: PopupRecord, error: unknown): void {
         console.error(`[Popup] 显示弹窗出错：${String(record.info.type)}`, error)
         this.endLoading(record)
-        if (this.current === record) this.current = null
+        this.removeFromShowing(record)
         this.finish(record, { reason: 'dropped' })
         this.schedule()
     }
 
-    private emitLoading(record: PopupRecord | null): void {
-        const info = (record?.info as AnyPopupInfo<M> | undefined) ?? null
+    private emitLoading(): void {
+        const loading = this.loadingPopups
         for (const listener of [...this.loadingListeners]) {
             try {
-                listener(info)
+                listener(loading)
             } catch (e) {
                 console.error('[Popup] 加载状态回调出错', e)
             }
@@ -632,7 +687,35 @@ export class PopupSystem<M extends object> {
     private endLoading(record: PopupRecord): void {
         if (!record.loading) return
         record.loading = null
-        this.emitLoading(null)
+        this.emitLoading()
+    }
+
+    // ---------------- 内部实现：层 ----------------
+
+    private capacityOf(layer: string): number {
+        return this.layerCapacity[layer] ?? 1
+    }
+
+    private showingIn(layer: string): PopupRecord[] {
+        return this.showing.filter(r => r.info.layer === layer)
+    }
+
+    /** 该层显示中优先级最低的；相同优先级取最后显示的（最上层的先让位） */
+    private lowestIn(layer: string): PopupRecord | null {
+        let lowest: PopupRecord | null = null
+        for (const record of this.showingIn(layer)) {
+            if (!lowest || record.info.priority <= lowest.info.priority) lowest = record
+        }
+        return lowest
+    }
+
+    private isShowing(record: PopupRecord): boolean {
+        return this.showing.includes(record)
+    }
+
+    private removeFromShowing(record: PopupRecord): void {
+        const index = this.showing.indexOf(record)
+        if (index !== -1) this.showing.splice(index, 1)
     }
 
     /** 取消进行中的异步显示：通知 UI 不要再显示 */
