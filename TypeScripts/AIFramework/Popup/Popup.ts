@@ -20,8 +20,10 @@
  *      层与层互不阻塞，需要共存的弹窗（提示、飘字、确认框）放到容量更大的层。
  *   3. 抢占：层满时，配置了 preempt 的高优先级弹窗可以把该层优先级最低的弹窗「收起」，
  *      被收起的弹窗回到队列，之后自动恢复显示。
- *   4. 新手模式：每种弹窗声明自己在新手引导期间的策略：
- *        allow 可以弹 / defer 等引导结束再弹 / drop 直接丢弃 / 函数 按引导步骤判断。
+ *   4. 新手模式：引导模块通过 setTutorial 告知当前是哪个引导的哪一步（TutorialContext）。
+ *      引导的某一步可以声明允许弹出哪些弹窗（allowPopups）；其余弹窗按自己的策略：
+ *        allow 可以弹 / defer 等引导结束再弹 / drop 直接丢弃 / 函数 根据引导上下文判断。
+ *      弱引导（forced: false，只是提示，不限制操作）不拦弹窗。
  *      引导开始时，正在显示的不允许弹出的弹窗会被收起（或丢弃）。
  *      引导结束时，对「被引导拦下」的弹窗调用 afterTutorial 再判断一次是否还需要弹出
  *      （例如引导期间获得的新手奖励，引导里已经展示过了，结束后就不用再弹）。
@@ -80,17 +82,42 @@ export type GuardResult = 'show' | 'wait' | 'drop'
 export type PopupCondition<D> = (data: D) => GuardResult | boolean
 
 /**
- * 新手引导期间的策略：
+ * 当前引导的上下文，由引导模块通过 setTutorial 传入。
+ *
+ * 不只用「第几步」：项目里有多个引导（主线新手、各个功能引导），步骤序号在不同引导里含义不同；
+ * 策划插入一步后序号整体后移，按序号写的判断会悄悄出错。所以用 guideId + stepId 定位。
+ */
+export interface TutorialContext<K extends PropertyKey = PropertyKey> {
+    /** 哪个引导，例如 'main'（主线新手）、'smithy'（铁匠铺功能引导） */
+    readonly guideId: string
+    /** 当前步骤的稳定 id，例如 'claim_reward'。不要用序号代替 */
+    readonly stepId: string
+    /** 步骤序号：只用于调试显示，判断请用 stepId */
+    readonly step?: number
+    /**
+     * 是否强引导（遮罩 + 只能按引导操作），默认 true。
+     * 弱引导（手指提示、气泡）为 false：不限制玩家操作，也不拦截弹窗。
+     */
+    readonly forced?: boolean
+    /**
+     * 这一步允许弹出的弹窗类型，由引导配置声明，优先于弹窗自身的 tutorial 策略。
+     * 例如「领取奖励」这一步需要弹出奖励弹窗：弹窗模块不需要知道引导的任何细节。
+     */
+    readonly allowPopups?: readonly K[]
+}
+
+/**
+ * 新手引导期间的策略（引导这一步没有在 allowPopups 中放行该弹窗时使用）：
  *   allow 引导期间也可以弹（例如引导自身的弹窗、强制公告）；
  *   defer 等引导结束后再弹（默认，最安全：不打断引导，也不会丢失）；
  *   drop  引导期间触发的直接丢弃（例如时效性强、过后没有意义的提示）；
- *   函数  根据当前引导步骤判断，例如引导第 3 步之后才允许弹出奖励。
+ *   函数  根据引导上下文判断，例如 ctx => ctx.guideId !== 'main'（只在主线新手期间延后）。
  */
 export type TutorialPolicy =
     | 'allow'
     | 'defer'
     | 'drop'
-    | ((step: number) => GuardResult | boolean)
+    | ((ctx: TutorialContext) => GuardResult | boolean)
 
 /**
  * 去重方式：
@@ -141,8 +168,9 @@ export interface PopupConfig<D> {
      * 不配置时默认全部保留。
      * @param data   弹窗数据
      * @param waited 已经排队的时长（毫秒），可以用来丢弃等待太久、已经过时的弹窗
+     * @param guide  刚结束的引导（最后一步的上下文），可以按引导区分，例如只在主线新手结束时丢弃新手礼包
      */
-    afterTutorial?: (data: D, waited: number) => boolean
+    afterTutorial?: (data: D, waited: number, guide: TutorialContext) => boolean
 }
 
 /** 暴露给外部（UI、业务代码）的弹窗信息，只读 */
@@ -311,8 +339,8 @@ export class PopupSystem<M extends object> {
     private readonly showing: PopupRecord[] = []
 
     private view: PopupView<M> | null = null
-    private tutorialActive = false
-    private tutorialStep = 0
+    /** 当前引导（包括弱引导），没有引导时为 null */
+    private tutorial: TutorialContext<keyof M> | null = null
     /** 全部暂停 */
     private paused = false
     /** 单独暂停的层 */
@@ -398,7 +426,7 @@ export class PopupSystem<M extends object> {
         }
 
         // 引导期间打开、且新手策略不允许弹出的，标记为被引导拦下
-        if (this.tutorialActive) this.markIfBlockedByTutorial(record)
+        if (this.tutorialBlocking) this.markIfBlockedByTutorial(record)
         this.insert(record)
         this.records.set(record.info.id, record)
         if (dedupKey !== null) this.dedup.set(dedupKey, record)
@@ -443,22 +471,35 @@ export class PopupSystem<M extends object> {
     // ---------------- 状态控制 ----------------
 
     /**
-     * 设置新手引导状态。引导开始时，正在显示的、不允许在引导期间弹出的弹窗会被收起；
-     * 引导结束时，先对被引导拦下的弹窗执行 afterTutorial 检查，再按优先级依次弹出留下来的；
-     * 步骤推进时，按步骤判断的弹窗会重新检查。
+     * 设置当前引导，由引导模块在每一步开始时调用，引导结束时传 null。
+     *   - 强引导开始 / 推进到下一步 / 切换到另一个引导：重新检查排队中和显示中的弹窗，
+     *     不允许的收起或丢弃，这一步放行的弹出；
+     *   - 强引导结束（传 null，或切换为弱引导）：先对被引导拦下的弹窗执行 afterTutorial，
+     *     再按优先级依次弹出留下来的；
+     *   - 弱引导（forced: false）对弹窗没有影响。
      */
-    setTutorial(active: boolean, step = 0): void {
-        // 只在「进行中 -> 结束」的那一刻检查一次；重复调用 setTutorial(false) 不会再检查
-        const ending = this.tutorialActive && !active
-        this.tutorialActive = active
-        this.tutorialStep = step
-        if (ending) {
-            this.checkAfterTutorial()
-        } else if (active) {
+    setTutorial(ctx: TutorialContext<keyof M> | null): void {
+        const last = this.tutorial
+        const wasBlocking = this.tutorialBlocking
+        this.tutorial = ctx
+        // 只在「强引导中 -> 不再拦截」的那一刻检查一次；重复调用 setTutorial(null) 不会再检查
+        if (wasBlocking && !this.tutorialBlocking) {
+            this.checkAfterTutorial(last!)
+        } else if (this.tutorialBlocking) {
             // 引导开始或步骤变化：引导前就在排队的弹窗，也可能从此被引导拦下
             this.queue.forEach(record => this.markIfBlockedByTutorial(record))
         }
         this.schedule()
+    }
+
+    /** 当前引导，没有引导时为 null */
+    get currentTutorial(): TutorialContext<keyof M> | null {
+        return this.tutorial
+    }
+
+    /** 是否处于会拦截弹窗的强引导中 */
+    private get tutorialBlocking(): boolean {
+        return this.tutorial !== null && this.tutorial.forced !== false
     }
 
     /**
@@ -565,8 +606,8 @@ export class PopupSystem<M extends object> {
         this.scheduled = false
         if (!this.view) return
 
-        // 引导开始时，检查正在显示的弹窗是否还允许显示
-        if (this.tutorialActive) {
+        // 强引导开始 / 推进时，检查正在显示的弹窗是否还允许显示
+        if (this.tutorialBlocking) {
             for (const record of [...this.showing]) {
                 const verdict = this.checkTutorial(record)
                 if (verdict === 'show') continue
@@ -739,7 +780,7 @@ export class PopupSystem<M extends object> {
     /** 依次检查新手策略和弹出条件，第一个不是 show 的结果生效 */
     private evaluate(record: PopupRecord): GuardResult {
         try {
-            if (this.tutorialActive) {
+            if (this.tutorialBlocking) {
                 const verdict = this.checkTutorial(record)
                 if (verdict !== 'show') return verdict
             }
@@ -755,8 +796,14 @@ export class PopupSystem<M extends object> {
         }
     }
 
-    /** 根据弹窗配置的新手策略，判断引导期间能否显示 */
+    /**
+     * 强引导期间能否显示：
+     *   1. 引导这一步在 allowPopups 中放行了该类型 -> show（引导配置优先，弹窗不需要知道引导细节）；
+     *   2. 否则按弹窗自己的 tutorial 策略。
+     */
     private checkTutorial(record: PopupRecord): GuardResult {
+        const ctx = this.tutorial!
+        if (ctx.allowPopups?.includes(record.info.type as keyof M)) return 'show'
         const policy = record.config.tutorial ?? 'defer'
         switch (policy) {
             case 'allow':
@@ -766,7 +813,7 @@ export class PopupSystem<M extends object> {
             case 'drop':
                 return 'drop'
             default:
-                return normalize(policy(this.tutorialStep))
+                return normalize(policy(ctx))
         }
     }
 
@@ -789,8 +836,9 @@ export class PopupSystem<M extends object> {
      * 引导结束时调用：对被引导拦下的弹窗执行 afterTutorial，返回 false 的直接丢弃。
      * 在 setTutorial 中同步执行（而不是等到 pump），这样被丢弃的弹窗不会有机会先弹出来，
      * 它们的 closed Promise 也能尽早完成。
+     * @param guide 刚结束的引导（最后一步），传给 afterTutorial 用于按引导区分
      */
-    private checkAfterTutorial(): void {
+    private checkAfterTutorial(guide: TutorialContext): void {
         const now = this.now()
         // 拷贝一份再遍历：遍历过程中会从 queue 里删除元素
         for (const record of [...this.queue]) {
@@ -803,7 +851,7 @@ export class PopupSystem<M extends object> {
 
             let keep = true
             try {
-                keep = check(record.info.data, now - record.enqueuedAt)
+                keep = check(record.info.data, now - record.enqueuedAt, guide)
             } catch (e) {
                 // 出错时保守处理：保留弹窗，交给后续的弹出条件继续判断
                 console.error(`[Popup] 引导结束检查出错：${String(record.info.type)}`, e)

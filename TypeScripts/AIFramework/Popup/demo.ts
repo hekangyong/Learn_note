@@ -4,7 +4,7 @@
  * 运行：npx tsc && node dist/AIFramework/Popup/demo.js
  */
 import { AnyPopupInfo, OpenResult } from './Popup'
-import { DemoPriority } from './demoPopups'
+import { DemoPriority, MainGuide } from './demoPopups'
 import { popup, PopupDataMap } from './PopupManager'
 
 // ------------------------------------------------------------
@@ -33,12 +33,13 @@ popup.register('LevelUp', {
 /** 新手礼包的道具 id：引导流程里会专门展示，引导结束后不需要再弹奖励弹窗 */
 const NEWBIE_GIFT_ID = 9001
 
-// 奖励：引导第 3 步（领取奖励教学）之后允许弹出；按 itemId + count 去重（默认 data 去重）
-// 引导结束时：新手礼包不再弹；被引导拦了 10 分钟以上的奖励已经过时，也不再弹
+// 奖励：引导期间默认延后，「领取奖励」这一步由引导配置放行（MainGuide.claimReward.allowPopups），
+// 奖励弹窗本身不需要知道引导有哪些步骤；按 itemId + count 去重（默认 data 去重）
+// 主线新手结束时：新手礼包不再弹；被引导拦了 10 分钟以上的奖励已经过时，也不再弹
 popup.register('Reward', {
     priority: DemoPriority.Reward,
-    tutorial: step => step >= 3,
-    afterTutorial: (data, waited) => data.itemId !== NEWBIE_GIFT_ID && waited < 10 * 60_000,
+    afterTutorial: (data, waited, guide) =>
+        !(guide.guideId === 'main' && data.itemId === NEWBIE_GIFT_ID) && waited < 10 * 60_000,
 })
 
 // 活动：引导期间触发的直接丢弃；10 级开放；活动数据更新时只弹最新的
@@ -125,29 +126,29 @@ async function demo() {
     await closeCurrent()
     await closeCurrent()
 
-    console.log('3. 新手模式：allow 可弹 / defer 延后 / drop 丢弃 / 按步骤判断')
-    popup.setTutorial(true, 1)
+    console.log('3. 新手模式：allow 可弹 / defer 延后 / drop 丢弃 / 引导步骤放行')
+    popup.setTutorial(MainGuide.intro)
     track('引导', popup.open('Guide', { step: 1, text: '点击这里' })) // allow
     track('升级', popup.open('LevelUp', { level: 7 })) // defer：等引导结束
-    track('奖励', popup.open('Reward', { itemId: 4, count: 1 })) // 第 3 步之后才可以
+    track('奖励', popup.open('Reward', { itemId: 4, count: 1 })) // 等「领取奖励」这一步放行
     track('活动', popup.open('Activity', { activityId: 1 })) // drop：直接丢弃
     await tick()
     await closeCurrent() // 引导弹窗关闭，升级、奖励都还不能弹
-    console.log('  -- 引导推进到第 3 步')
-    popup.setTutorial(true, 3)
-    await tick() // 奖励满足步骤条件，弹出；升级仍在等待
+    console.log('  -- 引导推进到「领取奖励」步骤（这一步放行奖励弹窗）')
+    popup.setTutorial(MainGuide.claimReward)
+    await tick() // 奖励被这一步放行，弹出；升级仍在等待
     await closeCurrent()
     console.log('  -- 引导结束')
-    popup.setTutorial(false)
+    popup.setTutorial(null)
     await tick() // 升级弹出
     await closeCurrent()
 
     console.log('4. 引导开始时，正在显示的不允许的弹窗被收起，引导结束后恢复')
     track('升级', popup.open('LevelUp', { level: 8 }))
     await tick()
-    popup.setTutorial(true, 1)
+    popup.setTutorial(MainGuide.intro)
     await tick() // 升级被收起
-    popup.setTutorial(false)
+    popup.setTutorial(null)
     await tick() // 升级恢复显示
     await closeCurrent()
 
@@ -190,7 +191,7 @@ async function demo() {
     }
 
     console.log('9. 引导结束时判断：被引导拦下的弹窗是否还可以弹出')
-    popup.setTutorial(true, 1)
+    popup.setTutorial(MainGuide.intro)
     track('引导', popup.open('Guide', { step: 1, text: '领取新手礼包' }))
     await tick()
     // 引导弹窗显示期间触发的奖励，同样会被标记为「被引导拦下」
@@ -198,7 +199,7 @@ async function demo() {
     track('普通奖励', popup.open('Reward', { itemId: 6, count: 2 }))
     await closeCurrent()
     console.log('  -- 引导结束')
-    popup.setTutorial(false) // 新手礼包被 afterTutorial 丢弃，普通奖励正常弹出
+    popup.setTutorial(null) // 新手礼包被 afterTutorial 丢弃，普通奖励正常弹出
     await tick()
     await closeCurrent()
 }

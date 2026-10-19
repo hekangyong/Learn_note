@@ -3,7 +3,7 @@
  *
  * 运行：cd TypeScripts && tsc && node dist/AIFramework/Popup/test.js
  */
-import { AnyPopupInfo, PopupSystem, PopupView } from './Popup'
+import { AnyPopupInfo, PopupConfig, PopupSystem, PopupView, TutorialContext } from './Popup'
 import { createPopupDecorators, PopupComponent } from './PopupDecorators'
 import { popupPriority } from './PopupManager'
 
@@ -294,10 +294,10 @@ async function main() {
         sys.open('Dialog', { n: 1 })
         sys.open('Toast', { n: 1 })
         await sleep(0)
-        sys.setTutorial(true)
+        sys.setTutorial({ guideId: 'main', stepId: 'intro' })
         await sleep(0)
         assertEqual(onScreen, ['Toast#2'])
-        sys.setTutorial(false)
+        sys.setTutorial(null)
         await sleep(0)
         assertEqual(onScreen, ['Toast#2', 'Dialog#1'])
     })
@@ -323,6 +323,95 @@ async function main() {
             sys.registrations.map(r => `${String(r.type)}:${r.priority}:${r.layer}${r.preempt ? ':preempt' : ''}`),
             ['Dialog:10:main', 'BigToast:9:toast:preempt', 'Shop:5:main', 'Toast:1:toast']
         )
+    })
+
+    console.log('\nPopup 新手引导上下文')
+
+    type G = { Reward: { itemId: number }; LevelUp: { level: number }; Tip: { text: string } }
+    function guideSystem(config: { reward?: Partial<PopupConfig<G['Reward']>> } = {}) {
+        const sys = new PopupSystem<G>()
+        sys.register('Reward', { priority: 20, ...config.reward })
+            .register('LevelUp', { priority: 10 })
+            .register('Tip', { priority: 5, tutorial: ctx => ctx.guideId !== 'main' })
+        return sys
+    }
+    const main = (stepId: string, extra: Partial<TutorialContext<keyof G>> = {}): TutorialContext<keyof G> => ({
+        guideId: 'main',
+        stepId,
+        ...extra,
+    })
+
+    await test('引导侧放行：这一步的 allowPopups 放行奖励，其他弹窗仍然延后；下一步不再放行', async () => {
+        const sys = guideSystem()
+        const onScreen = syncView(sys)
+        sys.setTutorial(main('intro'))
+        sys.open('Reward', { itemId: 1 })
+        sys.open('LevelUp', { level: 2 })
+        await sleep(0)
+        assertEqual(onScreen, [])
+        sys.setTutorial(main('claim_reward', { allowPopups: ['Reward'] }))
+        await sleep(0)
+        assertEqual(onScreen, ['Reward#1'])
+        sys.close(1)
+        sys.open('Reward', { itemId: 2 })
+        sys.setTutorial(main('next'))
+        await sleep(0)
+        assertEqual(onScreen, []) // 放行只对那一步有效
+        sys.setTutorial(null)
+        await sleep(0)
+        assertEqual(onScreen, ['Reward#3'])
+    })
+
+    await test('多个引导：函数策略按 guideId 区分，功能引导期间照常弹，主线期间延后', async () => {
+        const sys = guideSystem()
+        const onScreen = syncView(sys)
+        sys.setTutorial({ guideId: 'smithy', stepId: 'forge' })
+        sys.open('Tip', { text: 'a' })
+        await sleep(0)
+        assertEqual(onScreen, ['Tip#1'])
+        sys.setTutorial(main('intro')) // 切换到主线：显示中的提示被收起
+        await sleep(0)
+        assertEqual(onScreen, [])
+        assertEqual(sys.currentTutorial?.guideId, 'main')
+    })
+
+    await test('弱引导不拦弹窗；强引导切换为弱引导视为引导结束（执行 afterTutorial）', async () => {
+        const ended: string[] = []
+        const sys = guideSystem({
+            reward: { afterTutorial: (_d, _w, guide) => (ended.push(`${guide.guideId}/${guide.stepId}`), true) },
+        })
+        const onScreen = syncView(sys)
+        sys.setTutorial({ guideId: 'hint', stepId: 'bag', forced: false })
+        sys.open('LevelUp', { level: 2 })
+        await sleep(0)
+        assertEqual(onScreen, ['LevelUp#1'])
+        sys.close(1)
+        sys.setTutorial(main('intro'))
+        sys.open('Reward', { itemId: 1 })
+        await sleep(0)
+        assertEqual(onScreen, [])
+        sys.setTutorial({ guideId: 'hint', stepId: 'shop', forced: false })
+        await sleep(0)
+        assertEqual(ended, ['main/intro']) // afterTutorial 拿到刚结束的强引导
+        assertEqual(onScreen, ['Reward#2'])
+    })
+
+    await test('afterTutorial 按引导区分：只在主线新手结束时丢弃新手礼包', async () => {
+        const GIFT = 9001
+        const sys = guideSystem({
+            reward: { afterTutorial: (data, _w, guide) => !(guide.guideId === 'main' && data.itemId === GIFT) },
+        })
+        syncView(sys)
+        sys.setTutorial({ guideId: 'smithy', stepId: 'forge' })
+        const a = sys.open('Reward', { itemId: GIFT })
+        sys.setTutorial(null) // 功能引导结束：保留
+        await sleep(0)
+        assertEqual(sys.currentPopup?.type, 'Reward')
+        if (a.ok) sys.close(a.id)
+        sys.setTutorial(main('intro'))
+        const b = sys.open('Reward', { itemId: GIFT })
+        sys.setTutorial(null) // 主线结束：丢弃
+        if (b.ok) assertEqual((await b.closed).reason, 'dropped')
     })
 
     console.log(`\n${passed} passed, ${failed} failed`)

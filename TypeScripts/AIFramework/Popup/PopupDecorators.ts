@@ -12,7 +12,7 @@
  *       static notInBattle() { return !player.inBattle }        // 弹出条件
  *
  *       @AfterTutorial
- *       static keepAfterTutorial(data, waited) { return ... }   // 引导结束时是否还弹
+ *       static keepAfterTutorial(data, waited, guide) { ... }   // 引导结束时是否还弹
  *
  *       onShow(data, close) { ... }                              // 显示，close(result) 关闭
  *       onHide() { ... }                                         // 离开屏幕（可能还会恢复）
@@ -31,7 +31,7 @@
  *   4. 装饰 static 方法时，target 是类本身（构造函数）；装饰实例方法时，target 是原型对象。
  *      这里把 target 声明为 Function，装饰实例方法会直接编译报错，保证条件都是 static 方法。
  */
-import { GuardResult, PopupCondition, PopupConfig, PopupSystem, PopupView } from './Popup'
+import { GuardResult, PopupCondition, PopupConfig, PopupSystem, PopupView, TutorialContext } from './Popup'
 
 // ------------------------------------------------------------
 // 1. 类型定义
@@ -62,7 +62,7 @@ export type PopupComponentClass<D> = new () => PopupComponent<D>
 /** 成员装饰器收集到的、等待类装饰器取走的配置 */
 interface PendingMeta {
     conditions: PopupCondition<any>[]
-    afterTutorial?: (data: any, waited: number) => boolean
+    afterTutorial?: (data: any, waited: number, guide: TutorialContext) => boolean
 }
 
 // ------------------------------------------------------------
@@ -139,9 +139,9 @@ export function createPopupDecorators<M extends object>(system: PopupSystem<M>) 
 
     /**
      * 方法装饰器：把 static 方法声明为「引导结束时是否还可以弹出」的检查，每个类最多一个。
-     * 方法签名与配置中的 afterTutorial 相同：(data, waited) => boolean。
+     * 方法签名与配置中的 afterTutorial 相同：(data, waited, guide) => boolean，后面的参数可以省略。
      */
-    function AfterTutorial<F extends (data: any, waited: number) => boolean>(
+    function AfterTutorial<F extends (data: any, waited: number, guide: TutorialContext) => boolean>(
         target: Function,
         key: string,
         descriptor: TypedPropertyDescriptor<F>
@@ -151,7 +151,7 @@ export function createPopupDecorators<M extends object>(system: PopupSystem<M>) 
             throw new Error(`[Popup] ${target.name}.${key}：每个弹窗只能有一个 @AfterTutorial`)
         }
         const method = descriptor.value!
-        meta.afterTutorial = (data, waited) => method.call(target, data, waited)
+        meta.afterTutorial = (data, waited, guide) => method.call(target, data, waited, guide)
     }
 
     /**

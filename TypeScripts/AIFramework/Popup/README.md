@@ -127,7 +127,7 @@ popup.close(id, result)
 ### 2.3 方式二：装饰器
 
 ```ts
-@PopupWindow('Reward', { priority: popupPriority('Reward'), tutorial: step => step >= 3 })
+@PopupWindow('Reward', { priority: popupPriority('Reward'), tutorial: ctx => ctx.guideId !== 'main' })
 class RewardPopup implements PopupComponent<RewardData> {
     @Condition
     static notInBattle() { return !player.inBattle }
@@ -154,7 +154,7 @@ popup.setView(popupView)   // UI 启动时调用一次
 | 字段 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `priority` | `number` | 必填 | 越大越先弹；相同优先级先来先弹 |
-| `tutorial` | `'allow' \| 'defer' \| 'drop' \| (step) => GuardResult \| boolean` | `'defer'` | 新手引导期间的策略，见第 6 节 |
+| `tutorial` | `'allow' \| 'defer' \| 'drop' \| (ctx: TutorialContext) => GuardResult \| boolean` | `'defer'` | 强引导期间的策略（引导这一步没有用 `allowPopups` 放行时），见第 6 节 |
 | `conditions` | `PopupCondition<D>[]` | `[]` | 弹出条件，按顺序检查，第一个不是 `show` 的结果生效 |
 | `unique` | `'data' \| 'type' \| 'none'` | `'data'` | 去重方式，见第 7 节 |
 | `onDuplicate` | `'ignore' \| 'replace'` | `'ignore'` | 发现重复时保留旧的，还是用新的替换排队中的旧的 |
@@ -162,7 +162,7 @@ popup.setView(popupView)   // UI 启动时调用一次
 | `layer` | `string` | `'main'` | 所在的层。每层独立排队、有自己的容量，见 [5.6](#56-多弹窗共存层) |
 | `preempt` | `boolean` | `false` | 所在层已满时，能否抢占该层正在显示的、优先级**更低**的弹窗 |
 | `ttl` | `number`（毫秒） | 无 | 排队超时：入队后超过该时间仍未弹出则丢弃；显示过的弹窗不受影响 |
-| `afterTutorial` | `(data, waited) => boolean` | 全部保留 | 引导结束时，被引导拦下的弹窗是否还要弹，`false` 丢弃 |
+| `afterTutorial` | `(data, waited, guide) => boolean` | 全部保留 | 强引导结束时，被引导拦下的弹窗是否还要弹，`false` 丢弃；`guide` 是刚结束的引导 |
 
 条件函数的返回值 `GuardResult`：
 
@@ -196,7 +196,8 @@ new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now, { showTimeout = 1
 | `open(type, data)` | 请求打开，返回 `OpenResult`。未注册的类型直接抛异常（开发期错误，尽早暴露） |
 | `close(id, result?)` | 显示中的 → `hide` 并以 `closed` 结束；排队中的 → 以 `cancelled` 结束。返回弹窗是否存在 |
 | `closeAll(layer?)` | 关闭全部（切换账号、回登录界面）；传入 `layer` 只关闭该层 |
-| `setTutorial(active, step = 0)` | 设置新手引导状态与当前步骤 |
+| `setTutorial(ctx \| null)` | 设置当前引导（哪个引导、哪一步、是否强引导、这一步放行哪些弹窗），结束时传 `null`，见第 6 节 |
+| `currentTutorial` | 当前引导上下文或 `null` |
 | `pause(layer?)` / `resume(layer?)` | 暂停/恢复弹出（加载、战斗、过场）。已显示的不受影响；传入 `layer` 只暂停/恢复该层，`resume()` 恢复全部 |
 | `refresh()` | 外部状态变化后通知重新检查条件，让被 `wait` 卡住的弹窗有机会弹出 |
 | `currentPopup` | 最上层（最后显示）的弹窗或 `null`；只用 `main` 层时就是当前弹窗 |
@@ -370,29 +371,67 @@ UI 侧：每层对应一个节点，`show` 时按 `info.layer` 挂到对应节�
 
 ## 6. 新手引导模式
 
-每种弹窗通过 `tutorial` 声明引导期间的策略：
+### 6.1 引导上下文
+
+引导模块在每一步开始时调用 `popup.setTutorial(ctx)`，引导结束时调用 `popup.setTutorial(null)`：
+
+```ts
+interface TutorialContext {
+    guideId: string          // 哪个引导：'main'（主线新手）/ 'smithy'（铁匠铺功能引导）…
+    stepId: string           // 步骤的稳定 id：'claim_reward'
+    step?: number            // 序号，只用于调试显示
+    forced?: boolean         // 默认 true；弱引导（手指提示、气泡）传 false，不拦弹窗
+    allowPopups?: (keyof PopupDataMap)[]   // 这一步允许弹出的弹窗
+}
+```
+
+为什么不只传「第几步」：
+
+| 只用步骤序号的问题 | 现在的做法 |
+| --- | --- |
+| 有多个引导时，「第 3 步」在不同引导里含义不同，`step >= 3` 会在别的引导里误放行 | 用 `guideId` 区分引导 |
+| 策划插入一步后序号整体后移，按序号写的判断悄悄出错 | 用稳定的 `stepId`；或者干脆由引导配置用 `allowPopups` 声明 |
+| 分支、可跳过的引导，`>=` 没有意义 | 同上 |
+| 弱引导（只是提示）也会拦住所有弹窗 | `forced: false` 的引导不影响弹窗 |
+| 弹窗要知道引导内部「领奖是第几步」，改引导要翻遍弹窗模块 | 引导的这一步写 `allowPopups: ['Reward']`，弹窗不需要知道引导 |
+
+### 6.2 判断顺序
+
+强引导期间，弹窗能否显示：
+
+1. 当前这一步的 `allowPopups` 包含该类型 → 可以弹（**引导配置优先**）；
+2. 否则按弹窗自己的 `tutorial` 策略：
 
 | 策略 | 行为 | 适用 |
 | --- | --- | --- |
 | `allow` | 引导期间也可以弹 | 引导自身的弹窗、强制公告 |
 | `defer`（默认） | 等引导结束再弹 | 大多数弹窗：不打断引导，也不会丢失 |
 | `drop` | 引导期间触发的直接丢弃 | 时效性强、过后没有意义的提示 |
-| 函数 `(step) => …` | 按当前引导步骤判断 | 例如第 3 步（领奖教学）之后才允许弹奖励 |
+| 函数 `(ctx) => …` | 根据引导上下文判断 | 例如 `ctx => ctx.guideId !== 'main'`：只在主线新手期间延后，功能引导期间照常弹 |
 
-`setTutorial(active, step)` 的三种情况：
+`allowPopups` 只对那一步有效，推进到下一步后不再放行。
 
-- **引导开始 / 步骤推进**：遍历队列，把会被新手策略拦下的记录标记 `blockedByTutorial`；正在显示的、不再允许的弹窗会在下一次 `pump` 中被收起或丢弃。
-- **引导结束**（只在「进行中 → 结束」那一刻）：同步执行 `checkAfterTutorial`，对标记过的记录调用 `afterTutorial(data, waited)`，返回 `false` 的立即以 `dropped` 结束。同步执行是为了让被丢弃的弹窗没有机会先弹出来。
+「玩家**完成过**某一步之后才弹」是持久状态，不属于引导期间的策略，用弹出条件表达，引导模块在步骤完成时调用 `popup.refresh()`：
+
+```ts
+conditions: [() => guide.isCompleted('main', 'claim_reward')]
+```
+
+### 6.3 `setTutorial` 的几种情况
+
+- **强引导开始 / 推进到下一步 / 切换到另一个引导**：遍历队列，把会被拦下的记录标记 `blockedByTutorial`；正在显示的、不再允许的弹窗会在下一次 `pump` 中被收起或丢弃，这一步放行的弹窗弹出。
+- **强引导结束**（传 `null`，或切换为弱引导；只在「强引导中 → 不再拦截」那一刻）：同步执行 `checkAfterTutorial`，对标记过的记录调用 `afterTutorial(data, waited, guide)`（`guide` 是刚结束的那一步），返回 `false` 的立即以 `dropped` 结束。同步执行是为了让被丢弃的弹窗没有机会先弹出来。
 - 之后再 `schedule`，按优先级依次弹出剩下的。
+- **弱引导**：对弹窗没有任何影响。
 
-为什么在 `open` / `setTutorial` 中打标记，而不是在 `evaluate` 中？因为有弹窗正在显示时，低优先级弹窗根本走不到 `evaluate`，会漏标（见 `Popup.ts:762` 的注释）。
+为什么在 `open` / `setTutorial` 中打标记，而不是在 `evaluate` 中？因为有弹窗正在显示时，低优先级弹窗根本走不到 `evaluate`，会漏标（见 `Popup.ts:821` 的注释）。
 
 `afterTutorial` 的典型用法：
 
 ```ts
-afterTutorial: (data, waited) =>
-    data.itemId !== NEWBIE_GIFT_ID    // 新手礼包在引导中已经展示过
-    && waited < 10 * 60_000           // 被拦了 10 分钟以上的已经过时
+afterTutorial: (data, waited, guide) =>
+    !(guide.guideId === 'main' && data.itemId === NEWBIE_GIFT_ID)   // 新手礼包在主线引导中已经展示过
+    && waited < 10 * 60_000                                          // 被拦了 10 分钟以上的已经过时
 ```
 
 ---

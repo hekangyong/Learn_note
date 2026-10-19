@@ -4,7 +4,7 @@
  * 运行：npx tsc && node dist/AIFramework/Popup/decoratorDemo.js
  */
 import { PopupComponent } from './PopupDecorators'
-import { ActivityData, DemoPriority, GuideData, LevelUpData, NoticeData, RewardData } from './demoPopups'
+import { ActivityData, DemoPriority, GuideData, MainGuide, LevelUpData, NoticeData, RewardData } from './demoPopups'
 import { AfterTutorial, Condition, popup, popupView, PopupWindow } from './PopupManager'
 
 // 模拟的游戏状态
@@ -47,10 +47,10 @@ class LevelUpPopup implements PopupComponent<LevelUpData> {
     }
 }
 
-/** 奖励：引导第 3 步之后可弹；引导结束时不再弹新手礼包 */
+/** 奖励：只在主线新手引导期间延后（功能引导期间照常弹）；引导结束时不再弹新手礼包 */
 @PopupWindow('Reward', {
     priority: DemoPriority.Reward,
-    tutorial: step => step >= 3,
+    tutorial: ctx => ctx.guideId !== 'main',
 })
 class RewardPopup implements PopupComponent<RewardData> {
     /** 实例状态：被抢占后恢复时复用同一个实例，这个计数会保留 */
@@ -149,12 +149,12 @@ async function demo() {
     await closeCurrent()
 
     console.log('3. @AfterTutorial：引导结束时丢弃新手礼包，保留普通奖励')
-    popup.setTutorial(true, 1)
+    popup.setTutorial(MainGuide.intro)
     const gift = popup.open('Reward', { itemId: NEWBIE_GIFT_ID, count: 1 })
     popup.open('Reward', { itemId: 3, count: 2 })
     popup.open('Activity', { activityId: 1 }) // 引导期间 drop
     await tick()
-    popup.setTutorial(false)
+    popup.setTutorial(null)
     if (gift.ok) console.log(`  新手礼包：${(await gift.closed).reason}`)
     await tick()
     await closeCurrent()
