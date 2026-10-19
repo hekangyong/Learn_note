@@ -22,6 +22,8 @@ Main
 | `RedDot.ts` | 核心实现 `RedDotSystem` 和内部的 `RedDotNode`。只有类，没有副作用，可在测试中随意 `new` |
 | `RedDotManager.ts` | 全局单例 `redDot` + 路径常量 `RedDotPath`。业务代码和 UI 只从这里引用 |
 | `demo.ts` | 功能演示 + 与朴素实现的性能对比 |
+| `RedDotSignal.ts` | 与 [MVVM_MVC 框架](../MVVM_MVC/README.md) 的桥接：`redDotSignal`（读取）、`syncRedDot` / `syncRedDotMap`（写入），见第 9 节 |
+| `bridgeDemo.ts` | 演示：Model 驱动红点，MVVM 主界面和 MVC 邮件页签同时显示 |
 
 运行演示：
 
@@ -29,6 +31,7 @@ Main
 cd TypeScripts
 npx tsc
 node dist/RedDot/demo.js
+node dist/RedDot/bridgeDemo.js
 ```
 
 ---
@@ -251,3 +254,59 @@ for (let n = from; n && n !== this.root; n = n.parent) {
 - **系统不限制数值范围**：`add` 减到负数不会被截断为 0，负数会照样累加到祖先。业务层需要保证不会多减。
 - **`on` 和 `set` 会创建节点，节点不会被自动回收**：大量一次性的动态路径用完后应 `remove`。`get` 不会创建节点，可以放心读取。
 - **中间节点也可以有自身的值**：例如 `set('Main/Mail', 1)` 表示邮件页签自己有一个提醒，它的汇总值 = 1 + 子节点之和。
+
+---
+
+## 9. 接入 MVVM_MVC 框架（`RedDotSignal.ts`）
+
+红点系统本身**不改动**，只在两端桥接：
+
+```
+Model（框架） ──syncRedDot / syncRedDotMap──▶ redDot ──redDotSignal──▶ ViewModel / Controller（框架）
+```
+
+为什么不用 `signal` / `computed` 重写红点树：父节点增量求和是 O(深度)，`computed` 求和要遍历全部子节点；红点系统能跨微任务、按帧合并写入，`signal` 是同步传播的，`batch` 只能合并同一段同步代码；可替换的调度器也是框架没有的。两者各管各的：红点树负责计数和合并，框架负责界面状态和生命周期。
+
+### 9.1 读取桥：红点 -> signal
+
+`redDotSignal(system, path)` 返回 `RedDotSignal`，它既是 `ReadonlySignal<number>`，也是 `IDisposable`，直接登记到所属对象上，界面结束时自动取消监听：
+
+```ts
+class MainMenuViewModel extends ViewModel {
+    readonly count: ReadonlySignal<number>
+    readonly showBadge: ReadonlySignal<boolean>
+
+    constructor(game: GameModel) {
+        super()
+        this.count = this.addDisposable(redDotSignal(redDot, RedDotPath.Main))   // dispose 时取消
+        // 红点可以和其他状态组合：战斗中不显示
+        this.showBadge = computed(() => this.count.value > 0 && !game.state.inBattle)
+    }
+}
+
+class MailTabController extends Controller<MailTabView> {
+    protected onStart() {
+        const dot = this.addDisposable(redDotSignal(redDot, RedDotPath.Mail))     // stop 时取消
+        this.observe(dot, n => this.view.renderBadge(n), { immediate: true })
+    }
+}
+```
+
+### 9.2 写入桥：Model -> 红点
+
+应用启动时建立一次，之后业务代码只改 Model，不再手动调用 `redDot.set`：
+
+```ts
+syncRedDot(redDot, RedDotPath.MailSystem, () => mailModel.unread('system'))
+// 动态红点：结果中新出现的 key 创建节点，消失的 key 自动 remove
+syncRedDotMap(redDot, RedDotPath.BagItem, () => bagModel.state.newItems)   // { [itemId]: 1 }
+```
+
+`compute` 中读取的 Model 状态自动成为依赖。Model 每次变化都会同步调用一次 `redDot.set`，但红点系统会把它们合并：演示中连续收 1000 封邮件，界面只刷新一次。
+
+### 9.3 注意事项
+
+- 一次变化会先等红点系统 flush（默认微任务），再同步传给界面，所以修改 Model 后要 `await` 一次才能看到界面变化；
+- `syncRedDotMap` 对消失的 key 调用 `remove`，与第 8 节相同：绑定在被删除节点上的 `redDotSignal` 不会再收到通知。动态节点的界面应随数据一起销毁；需要保留绑定时，让 `compute` 返回 0 而不是删掉这个 key；
+- 写入桥的取消函数调用后，红点保留最后的值，需要归零时自己 `set(path, 0)`；
+- `syncRedDot` 管理的叶子不要再在别处手动 `set`，否则两边会互相覆盖。
