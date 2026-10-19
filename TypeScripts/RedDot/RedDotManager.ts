@@ -33,8 +33,10 @@ export const redDot = new RedDotSystem()
  *   ├── Mail
  *   │   ├── System
  *   │   └── Friend
- *   └── Bag
- *       └── Item/{id}
+ *   ├── Bag
+ *   │   └── Item/{id}
+ *   └── Task
+ *       └── Item/{taskId}
  */
 export const RedDotPath = {
     Main: 'Main',
@@ -46,4 +48,8 @@ export const RedDotPath = {
     Bag: 'Main/Bag',
     /** 动态路径：每个道具一个节点，用函数生成，保证格式统一 */
     BagItem: (itemId: number) => `Main/Bag/Item/${itemId}`,
+
+    /** 每日任务（DailyTask 模块）：每个可领取的任务一个节点 */
+    Task: 'Main/Task',
+    TaskItem: (taskId: number) => `Main/Task/Item/${taskId}`,
 } as const

@@ -28,6 +28,8 @@ export interface PopupDataMap {
     Reward: { itemId: number; count: number }
     /** 商店购买 */
     Shop: { itemId: number; price: number }
+    /** 每日任务面板（DailyTask 模块）；focusTaskId：打开后高亮的任务 */
+    DailyTask: { focusTaskId?: number }
     /** 活动 */
     Activity: { activityId: number }
     /** 公告 */
@@ -43,6 +45,7 @@ export const PopupPriority = {
     LevelUp: 300,
     Reward: 200,
     Shop: 150,
+    DailyTask: 120,
     Activity: 100,
     Notice: 50,
 } as const satisfies Record<keyof PopupDataMap, number>
