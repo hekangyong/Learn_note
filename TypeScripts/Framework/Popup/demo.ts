@@ -1,7 +1,7 @@
 /**
  * 弹窗管理系统演示
  *
- * 运行：npx tsc && node dist/Popup/demo.js
+ * 运行：npx tsc && node dist/Framework/Popup/demo.js
  */
 import { AnyPopupInfo, OpenResult } from './Popup'
 import { popup, PopupDataMap, PopupPriority } from './PopupManager'

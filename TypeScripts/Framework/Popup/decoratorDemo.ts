@@ -1,7 +1,7 @@
 /**
  * 弹窗管理系统演示：用装饰器注册弹窗
  *
- * 运行：npx tsc && node dist/Popup/decoratorDemo.js
+ * 运行：npx tsc && node dist/Framework/Popup/decoratorDemo.js
  */
 import { PopupComponent } from './PopupDecorators'
 import {

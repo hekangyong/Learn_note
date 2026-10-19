@@ -17,7 +17,7 @@
  *   │          └──────────────> PlayerModel（共享）<─────┘                │
  *   └──────────────────────────────────────────────────────────────────────┘
  *
- * 运行：tsc && node dist/Popup/archDemo.js
+ * 运行：tsc && node dist/Framework/Popup/archDemo.js
  */
 import { AsyncCommand, Command, computed, Model, MvcView, MvvmView, ReadonlySignal, signal } from '../MVVM_MVC'
 import { MvcPopup } from './arch/MvcPopup'

@@ -1,6 +1,6 @@
 /**
  * 自测用例：不依赖测试框架，直接运行
- *   cd TypeScripts && tsc && node dist/MVVM_MVC/test.js
+ *   cd TypeScripts && tsc && node dist/Framework/MVVM_MVC/test.js
  * 有失败时进程以非 0 退出码结束，可以直接放进 CI。
  */
 import {

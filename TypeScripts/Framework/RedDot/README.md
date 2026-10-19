@@ -30,8 +30,8 @@ Main
 ```bash
 cd TypeScripts
 npx tsc
-node dist/RedDot/demo.js
-node dist/RedDot/bridgeDemo.js
+node dist/Framework/RedDot/demo.js
+node dist/Framework/RedDot/bridgeDemo.js
 ```
 
 ---

@@ -53,7 +53,7 @@
  *   demo.ts         演示（手动 register）
  *   decoratorDemo.ts 演示（装饰器注册）
  *
- * 运行：npx tsc && node dist/Popup/demo.js
+ * 运行：npx tsc && node dist/Framework/Popup/demo.js
  */
 
 // ------------------------------------------------------------

@@ -43,9 +43,9 @@
 ```bash
 cd TypeScripts
 npx tsc
-node dist/Popup/demo.js
-node dist/Popup/decoratorDemo.js
-node dist/Popup/archDemo.js
+node dist/Framework/Popup/demo.js
+node dist/Framework/Popup/decoratorDemo.js
+node dist/Framework/Popup/archDemo.js
 ```
 
 ---

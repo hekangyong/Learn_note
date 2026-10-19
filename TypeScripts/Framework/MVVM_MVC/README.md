@@ -31,8 +31,8 @@ MVVM：View <─绑定─ ViewModel（signal / computed / Command）─读取─
 ```bash
 cd TypeScripts
 tsc
-node dist/MVVM_MVC/demo.js
-node dist/MVVM_MVC/test.js
+node dist/Framework/MVVM_MVC/demo.js
+node dist/Framework/MVVM_MVC/test.js
 ```
 
 ---

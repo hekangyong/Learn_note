@@ -19,6 +19,6 @@
         "sourceMap": true // 方便调试时定位到 .ts 源码
     },
     "include": ["**/*.ts"],
-    // WsProtoServer 是独立子项目；DailyTask/net 依赖 ws，由 WsProtoServer 的 tsconfig 检查
-    "exclude": ["node_modules", "dist", "WsProtoServer", "DailyTask/net"]
+    // Framework/WsProtoServer 是独立子项目；DailyTask/net 依赖 ws，由 WsProtoServer 的 tsconfig 检查
+    "exclude": ["node_modules", "dist", "Framework/WsProtoServer", "Framework/DailyTask/net"]
 }

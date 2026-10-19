@@ -5,7 +5,7 @@
  *                                    │
  *                                    └──computed──▶ TaskPanelViewModel ──绑定──▶ 任务面板（MVVM，弹窗）
  *
- * 运行：cd TypeScripts && tsc && node dist/DailyTask/demo.js
+ * 运行：cd TypeScripts && tsc && node dist/Framework/DailyTask/demo.js
  */
 import { popup, popupView } from '../Popup/PopupManager'
 import { redDot } from '../RedDot/RedDotManager'

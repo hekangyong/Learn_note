@@ -9,7 +9,7 @@
  * View 用 console 模拟；换成 DOM / React / 游戏引擎时只需重写 View 类，Model 和
  * Controller / ViewModel 一行都不用改。
  *
- * 运行：cd TypeScripts && tsc && node dist/MVVM_MVC/demo.js
+ * 运行：cd TypeScripts && tsc && node dist/Framework/MVVM_MVC/demo.js
  */
 import { AsyncCommand, Command, computed, Controller, Model, MvcView, MvvmView, ReadonlySignal, signal, ViewModel } from './index'
 

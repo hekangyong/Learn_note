@@ -1,7 +1,7 @@
 /**
  * 每日任务测试：ViewModel 不依赖任何 UI 和弹窗管理器，直接 new + init 测试全部界面逻辑
  *
- * 运行：cd TypeScripts && tsc && node dist/DailyTask/test.js
+ * 运行：cd TypeScripts && tsc && node dist/Framework/DailyTask/test.js
  */
 import { setErrorHandler } from '../MVVM_MVC'
 import { RedDotSystem } from '../RedDot/RedDot'

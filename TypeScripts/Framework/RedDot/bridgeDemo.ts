@@ -9,7 +9,7 @@
  *   3. 读取桥：红点变成 signal 后可以和其他状态组合（战斗中隐藏主界面红点）；
  *   4. 生命周期：红点监听登记在 ViewModel / Controller 上，界面结束时自动取消。
  *
- * 运行：tsc && node dist/RedDot/bridgeDemo.js
+ * 运行：tsc && node dist/Framework/RedDot/bridgeDemo.js
  */
 import { computed, Controller, Model, MvcView, MvvmView, ReadonlySignal, ViewModel } from '../MVVM_MVC'
 import { redDot, RedDotPath } from './RedDotManager'
