@@ -28,7 +28,9 @@
  *      被 wait 卡住的弹窗不会阻塞后面的弹窗。
  *   5. 去重：同类型 + 同数据的弹窗（排队中或显示中）不会被重复打开。
  *      数据比较与对象的 key 顺序无关；也可以按类型去重，或自定义去重 key。
- *   6. 其他：排队超时 ttl、暂停/恢复（加载、战斗中）、关闭全部、异常隔离、
+ *   6. 异步创建：view.show 可以返回 Promise（加载预制体、图集……），加载期间被关闭 / 抢占 / 引导收起时
+ *      通过 AbortSignal 通知 UI 不要再显示；加载失败或超时丢弃该弹窗，队列不会卡死。
+ *   7. 其他：排队超时 ttl、暂停/恢复（加载、战斗中）、关闭全部、异常隔离、
  *      open 返回 Promise 可以等待弹窗关闭并拿到结果。
  *
  * ============================================================
@@ -43,8 +45,12 @@
  *            │                                 ▼
  *            │     新手策略 + 弹出条件：show / wait（留在队列）/ drop
  *            │                                 │ show
- *            ▼                                 ▼
- *        closed Promise ◄── close ◄────── view.show 显示中 ──(被抢占/引导开始)──> 回到队列
+ *            │                                 ▼
+ *            │                     view.show ──(返回 Promise)──> 加载中 ──(失败/超时)──> dropped
+ *            │                                 │                    │ 完成
+ *            ▼                                 ▼                    ▼
+ *        closed Promise ◄── close ◄────── 显示中 ──(被抢占/引导开始)──> 回到队列
+ *                         （加载中被关闭 / 抢占 / 引导收起：abort 加载，其余同上）
  *
  * 文件组织：
  *   Popup.ts        本文件，弹窗系统核心实现（只有类，没有副作用）
@@ -53,7 +59,7 @@
  *   demo.ts         演示（手动 register）
  *   decoratorDemo.ts 演示（装饰器注册）
  *
- * 运行：npx tsc && node dist/Framework/Popup/demo.js
+ * 运行：npx tsc && node dist/AIFramework/Popup/demo.js
  */
 
 // ------------------------------------------------------------
@@ -153,7 +159,14 @@ export type AnyPopupInfo<M> = { [K in keyof M]: PopupInfo<K, M[K]> }[keyof M]
  * 用户点击关闭按钮时，UI 应调用 manager.close(id, result)，而不是自己销毁弹窗。
  */
 export interface PopupView<M> {
-    show(popup: AnyPopupInfo<M>): void
+    /**
+     * 显示弹窗。需要异步创建（加载预制体、图集……）时返回 Promise，完成时弹窗才算真正显示：
+     *   - 加载期间弹窗处于「加载中」，管理器仍把它当作当前弹窗（后面的弹窗继续排队）；
+     *   - 加载期间被关闭 / 抢占 / 引导收起时 signal 会被 abort，UI 收到后不能再把它显示出来；
+     *   - Promise reject 或超过 showTimeout 视为显示失败：丢弃该弹窗（dropped），继续弹下一个。
+     * 被抢占后恢复时会再次调用：资源应按弹窗 id 缓存，不要重复加载、重复创建实例。
+     */
+    show(popup: AnyPopupInfo<M>, signal: AbortSignal): void | Promise<void>
     hide(popup: AnyPopupInfo<M>): void
     /**
      * 可选：显示过的弹窗彻底结束时调用（在 hide 之后），之后不会再 show。
@@ -166,7 +179,7 @@ export interface PopupView<M> {
  * 弹窗结束的原因：
  *   closed    显示后被关闭（正常流程）；
  *   cancelled 还在排队时被 close 取消；
- *   dropped   被新手策略/弹出条件丢弃，或者 view.show 出错；
+ *   dropped   被新手策略/弹出条件丢弃，或者 view.show 出错 / 异步加载失败 / 超时；
  *   expired   排队超时；
  *   replaced  被同类型的新弹窗替换（onDuplicate: 'replace'）。
  */
@@ -186,6 +199,11 @@ export type OpenResult =
 /** 调度器：决定什么时候挑选下一个弹窗。默认微任务 */
 export type Scheduler = (task: () => void) => void
 
+export interface PopupSystemOptions {
+    /** view.show 返回的 Promise 最长等待时间（毫秒），超时视为显示失败。默认 10 秒 */
+    showTimeout?: number
+}
+
 /** 内部记录，比 PopupInfo 多了排队和去重需要的信息 */
 interface PopupRecord {
     readonly info: PopupInfo<PropertyKey, unknown>
@@ -200,6 +218,8 @@ interface PopupRecord {
     shown: boolean
     /** 是否被新手引导拦下过（未能弹出或被收起），引导结束时据此调用 afterTutorial */
     blockedByTutorial: boolean
+    /** 异步显示中（view.show 返回的 Promise 还没完成）时，用于取消本次显示 */
+    loading: AbortController | null
     /** 让 open 返回的 closed Promise 完成 */
     readonly resolve: (result: CloseResult) => void
 }
@@ -281,6 +301,8 @@ export class PopupSystem<M extends object> {
     private scheduled = false
     private nextId = 1
     private nextSeq = 0
+    private readonly showTimeout: number
+    private readonly loadingListeners = new Set<(popup: AnyPopupInfo<M> | null) => void>()
 
     /**
      * @param scheduler 挑选弹窗的时机。默认微任务：同一段同步代码里的所有 open 先全部入队，
@@ -289,8 +311,11 @@ export class PopupSystem<M extends object> {
      */
     constructor(
         private readonly scheduler: Scheduler = queueMicrotask,
-        private readonly now: () => number = Date.now
-    ) {}
+        private readonly now: () => number = Date.now,
+        options: PopupSystemOptions = {}
+    ) {
+        this.showTimeout = options.showTimeout ?? 10_000
+    }
 
     // ---------------- 配置 ----------------
 
@@ -346,6 +371,7 @@ export class PopupSystem<M extends object> {
             enqueuedAt: this.now(),
             shown: false,
             blockedByTutorial: false,
+            loading: null,
             resolve,
         }
 
@@ -447,6 +473,22 @@ export class PopupSystem<M extends object> {
         return this.records.has(id)
     }
 
+    /** 正在异步加载（view.show 的 Promise 还没完成）的当前弹窗，没有时为 null */
+    get loadingPopup(): AnyPopupInfo<M> | null {
+        const current = this.current
+        return current?.loading ? (current.info as AnyPopupInfo<M>) : null
+    }
+
+    /**
+     * 订阅加载状态：开始加载时回调弹窗信息，加载结束（完成 / 失败 / 被取消）时回调 null。
+     * 用于显示加载遮罩：加载期间挡住点击，避免玩家点穿到下层界面。
+     * @returns 取消订阅
+     */
+    onLoadingChange(listener: (popup: AnyPopupInfo<M> | null) => void): () => void {
+        this.loadingListeners.add(listener)
+        return () => this.loadingListeners.delete(listener)
+    }
+
     // ---------------- 内部实现：挑选与显示 ----------------
 
     private schedule(): void {
@@ -533,15 +575,72 @@ export class PopupSystem<M extends object> {
 
         this.current = record
         record.shown = true
+        const controller = new AbortController()
+        let pending: void | Promise<void>
         try {
-            this.view!.show(record.info as AnyPopupInfo<M>)
+            pending = this.view!.show(record.info as AnyPopupInfo<M>, controller.signal)
         } catch (e) {
-            // UI 出错时不能让整个队列卡死：丢弃这个弹窗，继续弹下一个
-            console.error(`[Popup] 显示弹窗出错：${String(record.info.type)}`, e)
-            if (this.current === record) this.current = null
-            this.finish(record, { reason: 'dropped' })
-            this.schedule()
+            this.failShow(record, e)
+            return
         }
+        if (!pending || typeof pending.then !== 'function') return
+
+        // 异步显示：等待期间仍是当前弹窗；每次 show 有自己的 controller，
+        // 被 hide 取消（abort）后，旧的 Promise 不管成功还是失败都不再处理
+        record.loading = controller
+        this.emitLoading(record)
+        const timer = setTimeout(() => {
+            if (controller.signal.aborted) return
+            controller.abort()
+            this.failShow(record, new Error(`显示超时（${this.showTimeout}ms）`))
+        }, this.showTimeout)
+        pending.then(
+            () => {
+                clearTimeout(timer)
+                if (!controller.signal.aborted) this.endLoading(record)
+            },
+            e => {
+                clearTimeout(timer)
+                if (controller.signal.aborted) return
+                controller.abort()
+                this.failShow(record, e)
+            }
+        )
+    }
+
+    /** 显示失败（同步抛错 / 异步 reject / 超时）：丢弃这个弹窗，继续弹下一个，不能让整个队列卡死 */
+    private failShow(record: PopupRecord, error: unknown): void {
+        console.error(`[Popup] 显示弹窗出错：${String(record.info.type)}`, error)
+        this.endLoading(record)
+        if (this.current === record) this.current = null
+        this.finish(record, { reason: 'dropped' })
+        this.schedule()
+    }
+
+    private emitLoading(record: PopupRecord | null): void {
+        const info = (record?.info as AnyPopupInfo<M> | undefined) ?? null
+        for (const listener of [...this.loadingListeners]) {
+            try {
+                listener(info)
+            } catch (e) {
+                console.error('[Popup] 加载状态回调出错', e)
+            }
+        }
+    }
+
+    /** 结束加载状态（不 abort，由调用方决定） */
+    private endLoading(record: PopupRecord): void {
+        if (!record.loading) return
+        record.loading = null
+        this.emitLoading(null)
+    }
+
+    /** 取消进行中的异步显示：通知 UI 不要再显示 */
+    private cancelLoading(record: PopupRecord): void {
+        const controller = record.loading
+        if (!controller) return
+        this.endLoading(record)
+        controller.abort()
     }
 
     /** 依次检查新手策略和弹出条件，第一个不是 show 的结果生效 */
@@ -644,6 +743,7 @@ export class PopupSystem<M extends object> {
 
     /** 弹窗彻底结束：清理索引，并完成 closed Promise */
     private finish(record: PopupRecord, result: CloseResult): void {
+        this.cancelLoading(record)
         this.records.delete(record.info.id)
         // 只删除指向自己的 key：被 replace 时，新记录可能已经占用了同一个 key
         if (record.dedupKey !== null && this.dedup.get(record.dedupKey) === record) {
@@ -660,8 +760,9 @@ export class PopupSystem<M extends object> {
         record.resolve(result)
     }
 
-    /** 调用 view.hide，并隔离 UI 异常，保证管理器自身状态始终正确 */
+    /** 调用 view.hide，并隔离 UI 异常，保证管理器自身状态始终正确。加载中的先取消加载 */
     private safeHide(record: PopupRecord): void {
+        this.cancelLoading(record)
         try {
             this.view?.hide(record.info as AnyPopupInfo<M>)
         } catch (e) {

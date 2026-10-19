@@ -2,7 +2,7 @@
  * 每日任务接入 WsProtoServer 的端到端测试：真实 WebSocket + Protobuf，
  * 客户端的 TaskModel / TaskPanelViewModel 与 FakeTaskServer 版本完全相同，只是 TaskApi 换成了 WsTaskApi。
  *
- * 运行：cd TypeScripts/Framework/WsProtoServer && npm run task:test
+ * 运行：cd TypeScripts/AIFramework/WsProtoServer && npm run task:test
  */
 import { setErrorHandler } from '../../MVVM_MVC'
 import { consoleLogger, ServerApp, WsProtoClient } from '../../WsProtoServer/src'

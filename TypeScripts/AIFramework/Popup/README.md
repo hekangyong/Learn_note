@@ -22,6 +22,7 @@
 | `demo.ts` | 演示：手动 `register` + 手写视图适配器，覆盖全部功能 |
 | `decoratorDemo.ts` | 演示：用装饰器注册弹窗 |
 | `archDemo.ts` | 演示：MVC 与 MVVM 两种写法的弹窗共存 |
+| `test.ts` | 测试：异步创建（加载中被抢占 / 关闭、加载失败 / 超时、加载状态、装饰器 `onLoad`） |
 
 分层关系：
 
@@ -43,9 +44,10 @@
 ```bash
 cd TypeScripts
 npx tsc
-node dist/Framework/Popup/demo.js
-node dist/Framework/Popup/decoratorDemo.js
-node dist/Framework/Popup/archDemo.js
+node dist/AIFramework/Popup/demo.js
+node dist/AIFramework/Popup/decoratorDemo.js
+node dist/AIFramework/Popup/archDemo.js
+node dist/AIFramework/Popup/test.js
 ```
 
 ---
@@ -148,11 +150,12 @@ popup.setView(popupView)   // UI 启动时调用一次
 ### 构造
 
 ```ts
-new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now)
+new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now, { showTimeout = 10_000 } = {})
 ```
 
 - `scheduler`：何时执行挑选。默认微任务——同一段同步代码里的多个 `open` 先全部入队，再统一按优先级挑选。
 - `now`：时间来源，测试 `ttl` 时可以传入假时钟。
+- `showTimeout`：异步 `view.show` 最长等待时间，超时视为显示失败（见 [5.5](#55-异步创建)）。
 
 ### 方法
 
@@ -169,6 +172,8 @@ new PopupSystem<M>(scheduler = queueMicrotask, now = Date.now)
 | `currentPopup` | 当前显示的弹窗信息或 `null` |
 | `queuedPopups` | 排队中的弹窗（按弹出顺序），用于调试面板 |
 | `has(id)` | 弹窗是否还存在（排队中或显示中） |
+| `loadingPopup` | 正在异步加载的当前弹窗或 `null` |
+| `onLoadingChange(fn)` | 订阅加载状态：开始时回调弹窗信息，结束时回调 `null`，用于加载遮罩。返回取消函数 |
 
 ### `open` 的返回值
 
@@ -194,7 +199,7 @@ if (r.ok) {
 | --- | --- |
 | `closed` | 显示后被 `close`（正常流程），`result` 为 `close` 传入的值 |
 | `cancelled` | 还在排队时被 `close` / `closeAll` 取消 |
-| `dropped` | 被新手策略、弹出条件或 `afterTutorial` 丢弃，或 `view.show` 抛异常 |
+| `dropped` | 被新手策略、弹出条件或 `afterTutorial` 丢弃，或 `view.show` 抛异常 / 异步加载失败 / 超时 |
 | `expired` | 排队超过 `ttl` |
 | `replaced` | 被同类型新弹窗替换（`onDuplicate: 'replace'`） |
 
@@ -202,7 +207,7 @@ if (r.ok) {
 
 | 方法 | 调用时机 | UI 需要保证 |
 | --- | --- | --- |
-| `show(info)` | 弹出；被抢占/被引导收起后**恢复时会再次调用** | 支持同一个弹窗多次 `show` |
+| `show(info, signal)` | 弹出；被抢占/被引导收起后**恢复时会再次调用**。可以返回 Promise（异步创建） | 支持同一个弹窗多次 `show`；异步时完成前检查 `signal.aborted`，被取消就不显示 |
 | `hide(info)` | 关闭、被抢占、引导开始被收起 | 可以重复调用 |
 | `dispose?(info)` | 显示过的弹窗彻底结束（在 `hide` 之后），之后不会再 `show` | 在这里释放 UI 实例 |
 
@@ -236,7 +241,7 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
 - 好处一：**批量合并**。先 `open` 公告、再 `open` 升级，仍然先弹升级。
 - 好处二：**避免重入**。UI 在 `show` 回调里同步调用 `close` 时，不会在管理器状态更新到一半时再次进入挑选逻辑。
 
-`pump` 的流程（`Popup.ts:463`）：
+`pump` 的流程（`Popup.ts:505`）：
 
 1. 没有 `view` → 直接返回。
 2. 引导进行中且有弹窗正在显示 → 用新手策略重新检查它：
@@ -248,7 +253,7 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
    3. `evaluate`（新手策略 → 各个条件）：`wait` 跳过看下一个，`drop` 移除，`show` 进入下一步；
    4. `display` 显示，**一次 pump 最多显示一个**。
 
-`display`（`Popup.ts:526`）：如果是抢占，先 `hide` 当前弹窗并以**原 `seq`** 插回队列，因此恢复时它仍排在同优先级后来者前面。
+`display`（`Popup.ts:568`）：如果是抢占，先 `hide` 当前弹窗并以**原 `seq`** 插回队列，因此恢复时它仍排在同优先级后来者前面。
 
 ### 5.3 队列实现
 
@@ -265,7 +270,40 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
 | `records` | `id → 记录`，排队中 + 显示中，用于 `close(id)` |
 | `dedup` | `去重 key → 记录`，排队中 + 显示中 |
 
-所有「弹窗彻底结束」都走 `finish()`（`Popup.ts:646`）：清理 `records` 和 `dedup`、对显示过的弹窗调用 `view.dispose`、完成 `closed` Promise。
+所有「弹窗彻底结束」都走 `finish()`（`Popup.ts:745`）：清理 `records` 和 `dedup`、对显示过的弹窗调用 `view.dispose`、完成 `closed` Promise。
+
+### 5.5 异步创建
+
+真实引擎里创建弹窗往往要先加载预制体、图集，`view.show` 可以返回 Promise，完成时弹窗才算真正显示。
+加载期间管理器仍把它当作当前弹窗（后面的弹窗继续排队），并处理好加载期间发生的各种事情：
+
+| 加载期间发生 | 处理 | 不处理会怎样 |
+| --- | --- | --- |
+| 被 `close` / 被抢占 / 引导开始被收起 | abort 本次 show 的 `signal`，加载完成后 UI 检查到已取消就不显示 | 关闭了却又显示出来的「幽灵弹窗」、两个弹窗叠在一起 |
+| 加载失败（reject） | 以 `dropped` 结束，继续弹下一个 | 当前弹窗永远不结束，**整个队列卡死** |
+| 超过 `showTimeout` | 同上，并 abort，迟到的结果被忽略 | 同上 |
+| 被抢占后恢复 | 再次调用 `show`，装饰器视图复用同一次加载 | 重复加载、创建两份实例 |
+
+用装饰器时，在弹窗类上实现 `onLoad` 即可，不用直接接触 `signal`：
+
+```ts
+@PopupWindow('Shop', { priority: PopupPriority.Shop })
+class ShopPopup implements PopupComponent<PopupDataMap['Shop']> {
+    private prefab!: Prefab
+
+    // 首次显示前调用一次，完成后才 onShow；signal 在弹窗彻底结束时 abort
+    async onLoad(data, signal) {
+        this.prefab = await loadPrefab('ui/shop', signal)
+    }
+    onShow(data, close) { /* 用 this.prefab 实例化并显示 */ }
+}
+```
+
+加载中屏幕上什么都没有，玩家可能点穿到下层界面，可以用加载状态显示遮罩：
+
+```ts
+popup.onLoadingChange(info => loadingMask.setVisible(info !== null))
+```
 
 ---
 
@@ -286,7 +324,7 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
 - **引导结束**（只在「进行中 → 结束」那一刻）：同步执行 `checkAfterTutorial`，对标记过的记录调用 `afterTutorial(data, waited)`，返回 `false` 的立即以 `dropped` 结束。同步执行是为了让被丢弃的弹窗没有机会先弹出来。
 - 之后再 `schedule`，按优先级依次弹出剩下的。
 
-为什么在 `open` / `setTutorial` 中打标记，而不是在 `evaluate` 中？因为有弹窗正在显示时，低优先级弹窗根本走不到 `evaluate`，会漏标（见 `Popup.ts:581` 的注释）。
+为什么在 `open` / `setTutorial` 中打标记，而不是在 `evaluate` 中？因为有弹窗正在显示时，低优先级弹窗根本走不到 `evaluate`，会漏标（见 `Popup.ts:680` 的注释）。
 
 `afterTutorial` 的典型用法：
 
@@ -319,7 +357,7 @@ afterTutorial: (data, waited) =>
 
 | 出错位置 | 处理 |
 | --- | --- |
-| `view.show` | 打印错误，以 `dropped` 结束该弹窗，继续弹下一个 |
+| `view.show`（同步抛错、异步 reject、超过 `showTimeout`） | 打印错误，以 `dropped` 结束该弹窗，继续弹下一个 |
 | `view.hide` / `view.dispose` | 打印错误，状态照常更新 |
 | 弹出条件 / 新手策略函数 | 视为 `wait`（保守：不误弹也不丢失） |
 | `afterTutorial` | 视为保留，交给后续条件判断 |

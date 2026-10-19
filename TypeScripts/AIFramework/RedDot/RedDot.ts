@@ -54,7 +54,7 @@
  *   RedDotManager.ts 全局单例 + 路径常量，业务代码和 UI 只从这里引用
  *   demo.ts          演示与性能对比
  *
- * 运行：npx tsc && node dist/Framework/RedDot/demo.js
+ * 运行：npx tsc && node dist/AIFramework/RedDot/demo.js
  */
 
 // ------------------------------------------------------------

@@ -36,6 +36,12 @@ import { GuardResult, PopupCondition, PopupConfig, PopupSystem, PopupView } from
 /** 用装饰器注册的弹窗 UI 类需要实现的接口 */
 export interface PopupComponent<D> {
     /**
+     * 可选：首次显示前异步加载资源（预制体、图集、配置……），完成后才调用 onShow。
+     * 每个实例只调用一次：加载中被抢占、之后恢复，会继续等同一次加载，不会重复加载。
+     * @param signal 弹窗彻底结束（关闭、丢弃）时 abort，可以用来中断下载
+     */
+    onLoad?(data: D, signal: AbortSignal): Promise<void>
+    /**
      * 显示弹窗。被抢占或被引导收起后恢复显示时会再次调用（同一个实例）。
      * @param close 关闭这个弹窗，result 会透传给 open 返回的 closed Promise
      */
@@ -68,8 +74,14 @@ export function createPopupDecorators<M extends object>(system: PopupSystem<M>) 
     const classes = new Map<keyof M, PopupComponentClass<any>>()
     /** UI 类 -> 成员装饰器收集到的配置。WeakMap：不阻止类被回收 */
     const pendingMeta = new WeakMap<Function, PendingMeta>()
-    /** 弹窗 id -> UI 实例。同一个弹窗被抢占后恢复，复用同一个实例，保留 UI 状态 */
-    const instances = new Map<number, PopupComponent<any>>()
+    /**
+     * 弹窗 id -> UI 实例。同一个弹窗被抢占后恢复，复用同一个实例，保留 UI 状态；
+     * loaded 缓存 onLoad 的 Promise，保证只加载一次；controller 在 dispose 时中断加载。
+     */
+    const instances = new Map<
+        number,
+        { component: PopupComponent<any>; loaded: Promise<void> | null; controller: AbortController }
+    >()
 
     function getMeta(ctor: Function): PendingMeta {
         let meta = pendingMeta.get(ctor)
@@ -143,26 +155,36 @@ export function createPopupDecorators<M extends object>(system: PopupSystem<M>) 
      * 使用装饰器模式时，调用 system.setView(view) 即可，不需要再手写视图。
      */
     const view: PopupView<M> = {
-        show(info) {
-            let instance = instances.get(info.id)
-            if (!instance) {
+        show(info, signal) {
+            let entry = instances.get(info.id)
+            if (!entry) {
                 const ctor = classes.get(info.type)
                 if (!ctor) {
                     // 抛出后由管理器丢弃这个弹窗并打印错误，不会卡住队列
                     throw new Error(`[Popup] 弹窗类型 ${String(info.type)} 没有用 @PopupWindow 注册 UI 类`)
                 }
-                instance = new ctor()
-                instances.set(info.id, instance)
+                const component = new ctor()
+                const controller = new AbortController()
+                entry = { component, controller, loaded: null }
+                instances.set(info.id, entry)
+                entry.loaded = component.onLoad?.(info.data, controller.signal) ?? null
             }
-            instance.onShow(info.data, result => system.close(info.id, result))
+            const { component, loaded } = entry
+            const display = () => component.onShow(info.data, result => system.close(info.id, result))
+            if (!loaded) return display()
+            // 本次 show 被取消（加载期间被关闭 / 抢占 / 收起）时不显示；加载结果仍缓存，恢复时直接用
+            return loaded.then(() => {
+                if (!signal.aborted) display()
+            })
         },
         hide(info) {
-            instances.get(info.id)?.onHide?.()
+            instances.get(info.id)?.component.onHide?.()
         },
         dispose(info) {
-            const instance = instances.get(info.id)
+            const entry = instances.get(info.id)
             instances.delete(info.id)
-            instance?.onDispose?.()
+            entry?.controller.abort()
+            entry?.component.onDispose?.()
         },
     }
 

@@ -15,10 +15,10 @@
 # MVVM_MVC / Popup / RedDot / SerializeDTO：由上层 TypeScripts/tsconfig.json 编译
 cd TypeScripts
 tsc
-node dist/Framework/MVVM_MVC/test.js
+node dist/AIFramework/MVVM_MVC/test.js
 
 # WsProtoServer：独立的 npm 项目
-cd TypeScripts/Framework/WsProtoServer
+cd TypeScripts/AIFramework/WsProtoServer
 npm install
 npm test
 ```

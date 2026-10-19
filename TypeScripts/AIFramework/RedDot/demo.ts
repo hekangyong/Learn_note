@@ -1,7 +1,7 @@
 /**
  * 红点系统演示与性能对比
  *
- * 运行：npx tsc && node dist/Framework/RedDot/demo.js
+ * 运行：npx tsc && node dist/AIFramework/RedDot/demo.js
  */
 import { RedDotSystem, SEPARATOR } from './RedDot'
 import { redDot, RedDotPath } from './RedDotManager'

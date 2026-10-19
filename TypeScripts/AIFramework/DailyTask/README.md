@@ -32,8 +32,8 @@ FakeTaskServer ──推送 / 接口──▶ TaskModel ──syncRedDotMap─�
 ```bash
 cd TypeScripts
 tsc
-node dist/Framework/DailyTask/demo.js
-node dist/Framework/DailyTask/test.js
+node dist/AIFramework/DailyTask/demo.js
+node dist/AIFramework/DailyTask/test.js
 ```
 
 ---
@@ -120,7 +120,7 @@ const tasks = new TaskModel(new WsTaskApi(client), wallet)
 `net/` 依赖 `ws`，所以由 WsProtoServer 子项目检查和运行，上层 `tsconfig.json` 已经把它排除：
 
 ```bash
-cd TypeScripts/Framework/WsProtoServer
+cd TypeScripts/AIFramework/WsProtoServer
 npm run typecheck
 npm run task:test
 ```
