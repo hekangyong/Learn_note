@@ -9,11 +9,14 @@
  */
 import { AsyncCommand, Command, computed, ReadonlySignal, signal } from '../MVVM_MVC'
 import { PopupViewModel } from '../Popup/arch/MvvmPopup'
-import { PopupDataMap } from '../Popup/PopupManager'
 import { Clock, formatDuration } from './Clock'
 import { statusOf, Task, TaskModel, TaskStatus, WalletModel } from './TaskModel'
 
-export type DailyTaskData = PopupDataMap['DailyTask']
+/** 打开每日任务面板时的数据（弹窗类型登记在 TaskPanel.ts） */
+export interface DailyTaskData {
+    /** 打开后高亮的任务 */
+    focusTaskId?: number
+}
 
 /** 面板中一行任务的显示数据：View 直接拿来渲染，不再做任何计算 */
 export interface TaskItem {

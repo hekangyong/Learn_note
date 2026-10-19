@@ -15,14 +15,15 @@
 | 文件 | 作用 |
 | --- | --- |
 | `Popup.ts` | 核心实现 `PopupSystem` 及全部类型定义。只有类，没有副作用，可在测试中随意 `new` |
-| `PopupManager.ts` | 全局单例 `popup`、弹窗数据类型表 `PopupDataMap`、优先级常量 `PopupPriority`、绑定到单例的装饰器 |
+| `PopupManager.ts` | 全局单例 `popup`、空的弹窗类型表 `PopupDataMap`（由各模块声明合并）、优先级档位 `PopupPriority` + `popupPriority()`、绑定到单例的装饰器 |
 | `PopupDecorators.ts` | 装饰器工厂 `createPopupDecorators`：`@PopupWindow` / `@Condition` / `@AfterTutorial` + 自动生成的视图适配器 |
 | `arch/MvcPopup.ts` | MVC 弹窗基类：继承 [MVVM_MVC](../MVVM_MVC/README.md) 的 `Controller`，把管理器生命周期映射为 start / stop / dispose |
 | `arch/MvvmPopup.ts` | MVVM 弹窗基类：`PopupViewModel`（继承框架的 `ViewModel`）+ `MvvmPopup`，View 直接使用框架的 `MvvmView` |
 | `demo.ts` | 演示：手动 `register` + 手写视图适配器，覆盖全部功能 |
 | `decoratorDemo.ts` | 演示：用装饰器注册弹窗 |
 | `archDemo.ts` | 演示：MVC 与 MVVM 两种写法的弹窗共存 |
-| `test.ts` | 测试：异步创建（加载中被抢占 / 关闭、加载失败 / 超时、加载状态、装饰器 `onLoad`） |
+| `demoPopups.ts` | 三个演示共用的弹窗类型登记和优先级（相当于一个业务模块） |
+| `test.ts` | 测试：异步创建、多弹窗共存（层）、优先级档位与登记汇总 |
 
 分层关系：
 
@@ -56,16 +57,22 @@ node dist/AIFramework/Popup/test.js
 
 ### 2.1 新增一种弹窗的步骤
 
-1. 在 `PopupManager.ts` 的 `PopupDataMap` 中声明数据类型：
+全部写在业务模块自己的文件里，**不需要改框架文件**：
+
+1. 通过声明合并把弹窗类型登记到 `PopupDataMap`（路径是从当前文件到 `PopupManager.ts` 的相对路径）：
    ```ts
-   export interface PopupDataMap {
-       // ...
-       Mail: { mailId: number }
+   // Mail/MailPopup.ts
+   export interface MailData { mailId: number }
+
+   declare module '../Popup/PopupManager' {
+       interface PopupDataMap {
+           Mail: MailData
+       }
    }
    ```
-2. 在 `PopupPriority` 中登记优先级（`satisfies Record<keyof PopupDataMap, number>` 保证不会漏登记）：
+2. 选择优先级档位，用 `popupPriority(档位, 偏移)` 计算优先级：
    ```ts
-   Mail: 120,
+   const priority = popupPriority('Panel', 10)   // 110：比普通面板高一点，仍低于所有奖励类
    ```
 3. 注册配置（二选一，见下面两节）。
 4. 业务代码只调用：
@@ -73,11 +80,32 @@ node dist/AIFramework/Popup/test.js
    popup.open('Mail', { mailId: 42 })   // data 类型会被编译器检查
    ```
 
+为什么不把所有弹窗写在一张中心表里：表本身没有运行时开销，几百项也不影响编译速度；
+问题在于**谁来维护**。集中在框架文件里会让框架依赖业务、多人同时改同一个文件、删功能时容易漏删。
+分散登记后：
+
+| 关注点 | 怎么保证 |
+| --- | --- |
+| 类型安全 | 与集中写法完全相同：`open` 的数据、`onShow` 的参数都按登记的类型检查，未登记的类型直接报错 |
+| 撞名 | 两个模块登记同名、但类型不同的弹窗时编译报错（TS2717）。建议名字带模块前缀，如 `'Mail.Detail'` |
+| 优先级总览 | 档位集中定义在 `PopupPriority`；具体每个弹窗的值用 `popup.registrations` 在调试面板 / 启动日志中打印 |
+| 优先级越界 | `popupPriority` 检查偏移不越过上一档，越界在注册时直接抛异常 |
+
+优先级档位（`PopupManager.ts`）：
+
+| 档位 | 基准值 | 用途 |
+| --- | --- | --- |
+| `Guide` | 1000 | 新手引导 |
+| `System` | 500 | 断线重连、强制更新、二次确认 |
+| `Reward` | 200 | 奖励、升级等结算类 |
+| `Panel` | 100 | 功能面板、活动 |
+| `Notice` | 50 | 公告、提示 |
+
 ### 2.2 方式一：手动 register
 
 ```ts
 popup.register('LevelUp', {
-    priority: PopupPriority.LevelUp,
+    priority: popupPriority('Reward', 100),
     conditions: [() => !player.inBattle],   // 战斗中不弹
 })
 
@@ -99,17 +127,17 @@ popup.close(id, result)
 ### 2.3 方式二：装饰器
 
 ```ts
-@PopupWindow('Reward', { priority: PopupPriority.Reward, tutorial: step => step >= 3 })
-class RewardPopup implements PopupComponent<PopupDataMap['Reward']> {
+@PopupWindow('Reward', { priority: popupPriority('Reward'), tutorial: step => step >= 3 })
+class RewardPopup implements PopupComponent<RewardData> {
     @Condition
     static notInBattle() { return !player.inBattle }
 
     @AfterTutorial
-    static keep(data: PopupDataMap['Reward'], waited: number) {
+    static keep(data: RewardData, waited: number) {
         return data.itemId !== NEWBIE_GIFT_ID
     }
 
-    onShow(data: PopupDataMap['Reward'], close: (result?: unknown) => void) { /* 显示 */ }
+    onShow(data: RewardData, close: (result?: unknown) => void) { /* 显示 */ }
     onHide() { /* 离开屏幕，之后可能还会 onShow */ }
     onDispose() { /* 彻底结束，释放资源 */ }
 }
@@ -293,8 +321,8 @@ open ──▶ 去重检查 ──(重复)──▶ { ok: false, reason: 'duplic
 用装饰器时，在弹窗类上实现 `onLoad` 即可，不用直接接触 `signal`：
 
 ```ts
-@PopupWindow('Shop', { priority: PopupPriority.Shop })
-class ShopPopup implements PopupComponent<PopupDataMap['Shop']> {
+@PopupWindow('Shop', { priority: popupPriority('Panel', 50) })
+class ShopPopup implements PopupComponent<ShopData> {
     private prefab!: Prefab
 
     // 首次显示前调用一次，完成后才 onShow；signal 在弹窗彻底结束时 abort
@@ -432,7 +460,7 @@ afterTutorial: (data, waited) =>
 ```ts
 class RewardView extends MvcView<{ claim: [] }> { ... }
 
-@PopupWindow('Reward', { priority: PopupPriority.Reward })
+@PopupWindow('Reward', { priority: popupPriority('Reward') })
 class RewardPopup extends MvcPopup<RewardData, RewardView> {
     constructor() { super(new RewardView()) }      // 管理器负责 new，构造函数不能有参数
     protected onStart() {

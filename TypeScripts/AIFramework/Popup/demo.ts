@@ -4,7 +4,8 @@
  * 运行：npx tsc && node dist/AIFramework/Popup/demo.js
  */
 import { AnyPopupInfo, OpenResult } from './Popup'
-import { popup, PopupDataMap, PopupPriority } from './PopupManager'
+import { DemoPriority } from './demoPopups'
+import { popup, PopupDataMap } from './PopupManager'
 
 // ------------------------------------------------------------
 // 1. 模拟的游戏状态（实际项目中来自玩家数据模块）
@@ -17,7 +18,7 @@ const player = { level: 5, inBattle: false }
 
 // 新手引导弹窗：引导期间当然可以弹；可以抢占其他弹窗；同时只存在一个
 popup.register('Guide', {
-    priority: PopupPriority.Guide,
+    priority: DemoPriority.Guide,
     tutorial: 'allow',
     preempt: true,
     unique: 'type',
@@ -25,7 +26,7 @@ popup.register('Guide', {
 
 // 升级：引导期间延后；战斗中不弹，战斗结束后再弹
 popup.register('LevelUp', {
-    priority: PopupPriority.LevelUp,
+    priority: DemoPriority.LevelUp,
     conditions: [() => !player.inBattle],
 })
 
@@ -35,14 +36,14 @@ const NEWBIE_GIFT_ID = 9001
 // 奖励：引导第 3 步（领取奖励教学）之后允许弹出；按 itemId + count 去重（默认 data 去重）
 // 引导结束时：新手礼包不再弹；被引导拦了 10 分钟以上的奖励已经过时，也不再弹
 popup.register('Reward', {
-    priority: PopupPriority.Reward,
+    priority: DemoPriority.Reward,
     tutorial: step => step >= 3,
     afterTutorial: (data, waited) => data.itemId !== NEWBIE_GIFT_ID && waited < 10 * 60_000,
 })
 
 // 活动：引导期间触发的直接丢弃；10 级开放；活动数据更新时只弹最新的
 popup.register('Activity', {
-    priority: PopupPriority.Activity,
+    priority: DemoPriority.Activity,
     tutorial: 'drop',
     conditions: [() => player.level >= 10],
     unique: 'type',
@@ -51,7 +52,7 @@ popup.register('Activity', {
 
 // 公告：排队超过 50ms 就没有意义了（演示用，实际可能是几分钟）
 popup.register('Notice', {
-    priority: PopupPriority.Notice,
+    priority: DemoPriority.Notice,
     ttl: 50,
 })
 

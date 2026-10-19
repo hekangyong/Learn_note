@@ -22,10 +22,8 @@
 import { AsyncCommand, Command, computed, Model, MvcView, MvvmView, ReadonlySignal, signal } from '../MVVM_MVC'
 import { MvcPopup } from './arch/MvcPopup'
 import { MvvmPopup, PopupViewModel } from './arch/MvvmPopup'
-import { popup, PopupDataMap, PopupPriority, popupView, PopupWindow } from './PopupManager'
-
-type RewardData = PopupDataMap['Reward']
-type ShopData = PopupDataMap['Shop']
+import { DemoPriority, RewardData, ShopData } from './demoPopups'
+import { popup, popupView, PopupWindow } from './PopupManager'
 
 /** 道具 id 为 1 表示金币 */
 const GOLD_ID = 1
@@ -105,7 +103,7 @@ class RewardView extends MvcView<{ claim: [] }> {
 }
 
 /** Controller：意图 -> 修改 Model；Model 变化 -> 主动刷新 View */
-@PopupWindow('Reward', { priority: PopupPriority.Reward })
+@PopupWindow('Reward', { priority: DemoPriority.Reward })
 class RewardPopup extends MvcPopup<RewardData, RewardView> {
     constructor() {
         super(new RewardView())
@@ -198,7 +196,7 @@ class ShopView extends MvvmView<ShopViewModel> {
 }
 
 /** 组装：注册方式与 MVC 弹窗完全相同 */
-@PopupWindow('Shop', { priority: PopupPriority.Shop })
+@PopupWindow('Shop', { priority: DemoPriority.Shop })
 class ShopPopup extends MvvmPopup<ShopData, ShopViewModel, ShopView> {
     protected createViewModel(): ShopViewModel {
         return new ShopViewModel(player)

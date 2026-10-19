@@ -511,6 +511,16 @@ export class PopupSystem<M extends object> {
         return this.showing.map(r => r.info as AnyPopupInfo<M>)
     }
 
+    /**
+     * 已注册的弹窗配置一览（按优先级从高到低）。
+     * 弹窗类型分散在各业务模块中登记，用它在调试面板或启动日志里检查整体的优先级排布。
+     */
+    get registrations(): { type: keyof M; priority: number; layer: string; preempt: boolean }[] {
+        return [...this.configs]
+            .map(([type, c]) => ({ type, priority: c.priority, layer: c.layer ?? DEFAULT_LAYER, preempt: !!c.preempt }))
+            .sort((a, b) => b.priority - a.priority)
+    }
+
     /** 排队中的弹窗（按弹出顺序），用于调试面板 */
     get queuedPopups(): AnyPopupInfo<M>[] {
         return this.queue.map(r => r.info as AnyPopupInfo<M>)

@@ -5,6 +5,7 @@
  */
 import { AnyPopupInfo, PopupSystem, PopupView } from './Popup'
 import { createPopupDecorators, PopupComponent } from './PopupDecorators'
+import { popupPriority } from './PopupManager'
 
 type M = { Slow: { n: number }; Urgent: { n: number }; Next: { n: number } }
 
@@ -299,6 +300,29 @@ async function main() {
         sys.setTutorial(false)
         await sleep(0)
         assertEqual(onScreen, ['Toast#2', 'Dialog#1'])
+    })
+
+    console.log('\nPopup 类型登记与优先级档位')
+
+    await test('popupPriority：档位 + 偏移，越过上一档时报错', async () => {
+        assertEqual(popupPriority('Panel'), 100)
+        assertEqual(popupPriority('Panel', 20), 120)
+        assertEqual(popupPriority('Guide', 5000), 6000) // 最高档没有上限
+        let error = ''
+        try {
+            popupPriority('Panel', 100) // 200 = Reward 档的基准值
+        } catch (e) {
+            error = (e as Error).message
+        }
+        assertEqual(error.includes('Panel(100) + 100'), true)
+    })
+
+    await test('registrations：分散登记的弹窗按优先级汇总', async () => {
+        const sys = layeredSystem()
+        assertEqual(
+            sys.registrations.map(r => `${String(r.type)}:${r.priority}:${r.layer}${r.preempt ? ':preempt' : ''}`),
+            ['Dialog:10:main', 'BigToast:9:toast:preempt', 'Shop:5:main', 'Toast:1:toast']
+        )
     })
 
     console.log(`\n${passed} passed, ${failed} failed`)

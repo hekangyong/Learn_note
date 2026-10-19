@@ -27,7 +27,7 @@ FakeTaskServer ──推送 / 接口──▶ TaskModel ──syncRedDotMap─�
 | `demo.ts` | — | 完整流程演示 |
 | `test.ts` | — | ViewModel 单元测试（不依赖 UI 和弹窗管理器） |
 
-另外在共享模块中登记了：`PopupDataMap.DailyTask` / `PopupPriority.DailyTask`（`Popup/PopupManager.ts`），`RedDotPath.Task` / `RedDotPath.TaskItem`（`RedDot/RedDotManager.ts`）。
+弹窗类型 `DailyTask` 在 `TaskPanel.ts` 中通过声明合并登记到 `PopupDataMap`，优先级为 `popupPriority('Panel', 20)`，不需要改弹窗框架；红点路径 `RedDotPath.Task` / `RedDotPath.TaskItem` 登记在共享模块 `RedDot/RedDotManager.ts` 中。
 
 ```bash
 cd TypeScripts

@@ -4,15 +4,8 @@
  * 运行：npx tsc && node dist/AIFramework/Popup/decoratorDemo.js
  */
 import { PopupComponent } from './PopupDecorators'
-import {
-    AfterTutorial,
-    Condition,
-    popup,
-    PopupDataMap,
-    PopupPriority,
-    popupView,
-    PopupWindow,
-} from './PopupManager'
+import { ActivityData, DemoPriority, GuideData, LevelUpData, NoticeData, RewardData } from './demoPopups'
+import { AfterTutorial, Condition, popup, popupView, PopupWindow } from './PopupManager'
 
 // 模拟的游戏状态
 const player = { level: 5, inBattle: false }
@@ -24,13 +17,13 @@ const NEWBIE_GIFT_ID = 9001
 
 /** 新手引导：引导期间可弹、可抢占、同时只存在一个 */
 @PopupWindow('Guide', {
-    priority: PopupPriority.Guide,
+    priority: DemoPriority.Guide,
     tutorial: 'allow',
     preempt: true,
     unique: 'type',
 })
-class GuidePopup implements PopupComponent<PopupDataMap['Guide']> {
-    onShow(data: PopupDataMap['Guide']) {
+class GuidePopup implements PopupComponent<GuideData> {
+    onShow(data: GuideData) {
         console.log(`  [显示] 引导 第${data.step}步：${data.text}`)
     }
     onHide() {
@@ -39,14 +32,14 @@ class GuidePopup implements PopupComponent<PopupDataMap['Guide']> {
 }
 
 /** 升级：战斗中不弹 */
-@PopupWindow('LevelUp', { priority: PopupPriority.LevelUp })
-class LevelUpPopup implements PopupComponent<PopupDataMap['LevelUp']> {
+@PopupWindow('LevelUp', { priority: DemoPriority.LevelUp })
+class LevelUpPopup implements PopupComponent<LevelUpData> {
     @Condition
     static notInBattle() {
         return !player.inBattle
     }
 
-    onShow(data: PopupDataMap['LevelUp']) {
+    onShow(data: LevelUpData) {
         console.log(`  [显示] 升级 Lv.${data.level}`)
     }
     onHide() {
@@ -56,10 +49,10 @@ class LevelUpPopup implements PopupComponent<PopupDataMap['LevelUp']> {
 
 /** 奖励：引导第 3 步之后可弹；引导结束时不再弹新手礼包 */
 @PopupWindow('Reward', {
-    priority: PopupPriority.Reward,
+    priority: DemoPriority.Reward,
     tutorial: step => step >= 3,
 })
-class RewardPopup implements PopupComponent<PopupDataMap['Reward']> {
+class RewardPopup implements PopupComponent<RewardData> {
     /** 实例状态：被抢占后恢复时复用同一个实例，这个计数会保留 */
     private showTimes = 0
 
@@ -69,11 +62,11 @@ class RewardPopup implements PopupComponent<PopupDataMap['Reward']> {
     }
 
     @AfterTutorial
-    static keepAfterTutorial(data: PopupDataMap['Reward'], waited: number) {
+    static keepAfterTutorial(data: RewardData, waited: number) {
         return data.itemId !== NEWBIE_GIFT_ID && waited < 10 * 60_000
     }
 
-    onShow(data: PopupDataMap['Reward']) {
+    onShow(data: RewardData) {
         this.showTimes++
         console.log(`  [显示] 奖励 道具 ${data.itemId} x${data.count}（第 ${this.showTimes} 次显示）`)
     }
@@ -87,31 +80,31 @@ class RewardPopup implements PopupComponent<PopupDataMap['Reward']> {
 
 /** 活动：引导期间丢弃；10 级开放；条件可以返回 drop 直接丢弃 */
 @PopupWindow('Activity', {
-    priority: PopupPriority.Activity,
+    priority: DemoPriority.Activity,
     tutorial: 'drop',
     unique: 'type',
     onDuplicate: 'replace',
 })
-class ActivityPopup implements PopupComponent<PopupDataMap['Activity']> {
+class ActivityPopup implements PopupComponent<ActivityData> {
     @Condition
     static levelEnough() {
         return player.level >= 10
     }
 
     @Condition
-    static notExpired(data: PopupDataMap['Activity']) {
+    static notExpired(data: ActivityData) {
         return data.activityId === 0 ? 'drop' : 'show' // 0 表示活动已下线
     }
 
-    onShow(data: PopupDataMap['Activity']) {
+    onShow(data: ActivityData) {
         console.log(`  [显示] 活动 ${data.activityId}`)
     }
 }
 
 /** 公告：弹窗内部自己调用 close 并返回结果（例如确认框） */
-@PopupWindow('Notice', { priority: PopupPriority.Notice })
-class NoticePopup implements PopupComponent<PopupDataMap['Notice']> {
-    onShow(data: PopupDataMap['Notice'], close: (result?: unknown) => void) {
+@PopupWindow('Notice', { priority: DemoPriority.Notice })
+class NoticePopup implements PopupComponent<NoticeData> {
+    onShow(data: NoticeData, close: (result?: unknown) => void) {
         console.log(`  [显示] 公告：${data.title}`)
         setTimeout(() => close('confirmed'), 0) // 模拟玩家点击「确定」
     }

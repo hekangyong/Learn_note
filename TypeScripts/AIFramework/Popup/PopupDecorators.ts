@@ -2,8 +2,12 @@
  * 弹窗装饰器：用装饰器把一个 UI 类声明为弹窗，注册和显示都交给管理器
  *
  * 用法：
- *   @PopupWindow('Reward', { priority: PopupPriority.Reward })
- *   class RewardPopup implements PopupComponent<PopupDataMap['Reward']> {
+ *   declare module './PopupManager' {                            // 登记弹窗类型（声明合并）
+ *       interface PopupDataMap { Reward: RewardData }
+ *   }
+ *
+ *   @PopupWindow('Reward', { priority: popupPriority('Reward') })
+ *   class RewardPopup implements PopupComponent<RewardData> {
  *       @Condition
  *       static notInBattle() { return !player.inBattle }        // 弹出条件
  *

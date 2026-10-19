@@ -8,7 +8,7 @@
  */
 import { MvvmView } from '../MVVM_MVC'
 import { MvvmPopup } from '../Popup/arch/MvvmPopup'
-import { PopupPriority, PopupWindow } from '../Popup/PopupManager'
+import { popupPriority, PopupWindow } from '../Popup/PopupManager'
 import { Clock } from './Clock'
 import { TaskModel, TaskStatus, WalletModel } from './TaskModel'
 import { DailyTaskData, TaskPanelViewModel } from './TaskPanelViewModel'
@@ -88,7 +88,15 @@ export class TaskPanelView extends MvvmView<TaskPanelViewModel> {
 // 弹窗注册
 // ============================================================
 
-@PopupWindow('DailyTask', { priority: PopupPriority.DailyTask })
+declare module '../Popup/PopupManager' {
+    interface PopupDataMap {
+        /** 每日任务面板 */
+        DailyTask: DailyTaskData
+    }
+}
+
+// 比普通功能面板稍高，仍低于所有奖励类弹窗
+@PopupWindow('DailyTask', { priority: popupPriority('Panel', 20) })
 export class DailyTaskPopup extends MvvmPopup<DailyTaskData, TaskPanelViewModel, TaskPanelView> {
     protected createViewModel(): TaskPanelViewModel {
         const { tasks, wallet, clock } = requireDeps()
