@@ -23,6 +23,7 @@ MVVM：View <─绑定─ ViewModel（signal / computed / Command）─读取─
 | `core/errors.ts` | 全局错误出口 `setErrorHandler`，接入日志 / Sentry |
 | `model/Model.ts` | Model 基类：不可变状态、`select` / `observe` |
 | `mvc/MvcView.ts`、`mvc/Controller.ts` | MVC |
+| `mvc/MultiController.ts` | MVC：一个 Controller 驱动多个 View（Cocos 等组件化界面） |
 | `mvvm/ViewModel.ts`、`mvvm/MvvmView.ts`、`mvvm/Command.ts` | MVVM |
 | `index.ts` | 统一出口，业务代码只从这里引用 |
 | `demo.ts` | 同一个 TodoModel 分别用 MVC 和 MVVM 驱动 |
@@ -87,6 +88,75 @@ controller.start()    // 显示
 controller.stop()     // 隐藏，监听全部释放，可以再次 start
 controller.dispose()  // 销毁，连同 View 一起
 ```
+
+### 3.1 一个 Controller，多个 View（MultiController）
+
+`Controller` 和一个 View 绑在一起：构造时传入 View，`dispose` 时连 View 一起销毁。Cocos 里 View 是节点上的组件，由引擎创建、销毁，同一份数据又常常显示在多个界面上，每个界面 new 一个 Controller 就会把 Model 观察和意图处理重复注册多次。这时用 `MultiController`：
+
+| | `Controller` | `MultiController` |
+| --- | --- | --- |
+| 数量 | 每个 View 一个 | 全局一个 |
+| Model 观察 | 每个 View 注册一次 | `start()` 时只注册一次 |
+| View | 构造时注入 | 运行时 `attach` / `detach` |
+| 意图 | `onStart` 里逐个 `listen` | `intents()` 写一次，每个 View 自动接线 |
+| 刷新 | `this.view.renderX()` | `this.forEachView(v => v.renderX?.())` |
+| 销毁 View | 会 | 不会，View 归引擎节点管 |
+
+```ts
+interface TodoPanel extends IMvcView<TodoIntents> {
+    renderList?(items: readonly Todo[]): void   // 列表面板实现
+    renderCount?(remaining: number): void       // 角标实现
+}
+
+class TodoController extends MultiController<TodoIntents, TodoPanel> {
+    constructor(private readonly model: TodoModel) { super() }
+
+    protected intents(): IntentHandlers<TodoIntents> {
+        return { add: title => this.model.add(title), toggle: id => this.model.toggle(id) }
+    }
+    protected onStart() {
+        this.observe(this.model.state$, s => this.forEachView(v => this.render(v, s)))
+    }
+    /** Model 观察早于 View 出现，新挂上的 View 补一次当前状态 */
+    protected onAttach(view: TodoPanel) {
+        this.render(view, this.model.state)
+    }
+    private render(v: TodoPanel, s: TodoState) {
+        v.renderList?.(s.items)
+        v.renderCount?.(s.items.filter(t => !t.done).length)
+    }
+}
+
+// 启动时执行一次
+export const todoController = new TodoController(todoModel)
+todoController.start()
+```
+
+Cocos 组件必须继承 `Component`，不能继承 `MvcView`。`MultiController` 只要求 View 满足 `IMvcView`（能 `on` 监听意图，`mount` / `unmount` 可选），组件自己持有一个 `Emitter` 就行：
+
+```ts
+export abstract class MvcComponent<I extends EventMap<I>> extends Component implements IMvcView<I> {
+    private readonly emitter = new Emitter<I>()
+    on<K extends keyof I>(intent: K, handler: Listener<I[K]>) { return this.emitter.on(intent, handler) }
+    protected emit<K extends keyof I>(intent: K, ...args: I[K]) {
+        if (this.enabledInHierarchy) this.emitter.emit(intent, ...args)
+    }
+    protected onDestroy() { this.emitter.clear() }
+}
+
+@ccclass('TodoListPanel')
+export class TodoListPanel extends MvcComponent<TodoIntents> implements TodoPanel {
+    onEnable()  { todoController.attach(this) }
+    onDisable() { todoController.detach(this) }
+    renderList(items: readonly Todo[]) { /* 刷新 ScrollView */ }
+    onClickAdd() { this.emit('add', this.editBox.string) }
+}
+```
+
+- 可以在 `start` 之前 `attach`（组件的 `onEnable` 先于启动逻辑执行时），意图照常接线，Model 观察在 `start` 后开始；
+- 单个 View 刷新出错进入 `onError(error, 'render')`，不影响其他 View；
+- 一个 View 可以同时挂在多个 Controller 上（意图表写成 `MvcView<CoinIntents & ProfileIntents>`），每个 Controller 只处理自己 `intents()` 里的意图；第一个 attach 时才 `mount`，最后一个 detach 时才 `unmount`。不同 Controller 的意图不要重名，否则会被两边同时处理；
+- 各界面关心的数据差别很大时，按需 `observe(model.select(...))`，避免为了一个角标刷新整张列表。
 
 ---
 

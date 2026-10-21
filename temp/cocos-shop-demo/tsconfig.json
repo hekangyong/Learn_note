@@ -1,0 +1,13 @@
+{
+    // 只用于类型检查（cc 来自 types-stub）。拷贝进真实 Cocos 项目时用编辑器生成的 tsconfig
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "CommonJS",
+        "lib": ["ES2020", "DOM"],
+        "strict": true,
+        "experimentalDecorators": true,
+        "noEmit": true,
+        "skipLibCheck": true
+    },
+    "include": ["types-stub/**/*.d.ts", "assets/**/*.ts"]
+}

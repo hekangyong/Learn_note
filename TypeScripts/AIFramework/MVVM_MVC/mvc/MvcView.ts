@@ -13,7 +13,17 @@
  */
 import { Emitter, EventMap, Listener } from '../core/Emitter'
 
-export abstract class MvcView<Intents extends EventMap<Intents> = {}> {
+/**
+ * MultiController 对 View 的最小要求：能监听意图。mount / unmount 可选，有就在 attach / detach 时调用。
+ * MvcView 已经实现了它；Cocos 等引擎的组件不能继承 MvcView 时，自己实现这个接口即可。
+ */
+export interface IMvcView<Intents extends EventMap<Intents>> {
+    on<K extends keyof Intents>(intent: K, handler: Listener<Intents[K]>): () => void
+    mount?(): void
+    unmount?(): void
+}
+
+export abstract class MvcView<Intents extends EventMap<Intents> = {}> implements IMvcView<Intents> {
     /** 仅用于类型推导（Controller 据此得到意图表），运行时不存在 */
     declare readonly __intents?: Intents
 

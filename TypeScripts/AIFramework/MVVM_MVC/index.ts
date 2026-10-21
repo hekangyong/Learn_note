@@ -25,8 +25,10 @@ export type {
 export { Model } from './model/Model'
 
 export { MvcView } from './mvc/MvcView'
-export type { IntentsOf } from './mvc/MvcView'
+export type { IntentsOf, IMvcView } from './mvc/MvcView'
 export { Controller } from './mvc/Controller'
+export { MultiController } from './mvc/MultiController'
+export type { IntentHandlers } from './mvc/MultiController'
 
 export { ViewModel } from './mvvm/ViewModel'
 export { MvvmView } from './mvvm/MvvmView'

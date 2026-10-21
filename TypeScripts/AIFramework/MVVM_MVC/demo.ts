@@ -11,7 +11,21 @@
  *
  * 运行：cd TypeScripts && tsc && node dist/AIFramework/MVVM_MVC/demo.js
  */
-import { AsyncCommand, Command, computed, Controller, Model, MvcView, MvvmView, ReadonlySignal, signal, ViewModel } from './index'
+import {
+    AsyncCommand,
+    Command,
+    computed,
+    Controller,
+    IMvcView,
+    IntentHandlers,
+    Model,
+    MultiController,
+    MvcView,
+    MvvmView,
+    ReadonlySignal,
+    signal,
+    ViewModel,
+} from './index'
 
 // ============================================================
 // Model 层
@@ -285,6 +299,80 @@ class ConsoleTodoMvvmView extends MvvmView<TodoViewModel> {
 }
 
 // ============================================================
+// MVC：一个 Controller 驱动多个 View（Cocos 等引擎的组件化界面）
+// ============================================================
+
+/**
+ * 所有界面共用的 View 接口。显示方法都是可选的：列表面板实现 renderList，角标只实现 renderCount。
+ * Cocos 中由组件实现：class TodoListPanel extends Component implements TodoPanel
+ */
+interface TodoPanel extends IMvcView<TodoIntents> {
+    renderList?(items: readonly Todo[], loading: boolean): void
+    renderCount?(remaining: number): void
+    showError?(message: string): void
+}
+
+/** 列表面板 */
+class ConsoleTodoListPanel extends MvcView<TodoIntents> implements TodoPanel {
+    renderList(items: readonly Todo[], loading: boolean): void {
+        console.log(`  [列表面板] ${loading ? '加载中… ' : ''}${formatList(items)}`)
+    }
+    showError(message: string): void {
+        console.log(`  [列表面板] ⚠ ${message}`)
+    }
+    submit(title: string): void {
+        this.emit('add', title)
+    }
+    clickItem(id: number): void {
+        this.emit('toggle', id)
+    }
+}
+
+/** 主界面上的角标：只显示剩余数量，只发出「清除已完成」 */
+class ConsoleTodoBadge extends MvcView<TodoIntents> implements TodoPanel {
+    renderCount(remaining: number): void {
+        console.log(`  [角标] 剩余 ${remaining}`)
+    }
+    clickClear(): void {
+        this.emit('clearCompleted')
+    }
+}
+
+/** 全局只创建一个：Model 观察和意图处理都只注册一次 */
+class SharedTodoController extends MultiController<TodoIntents, TodoPanel> {
+    constructor(private readonly model: TodoModel) {
+        super()
+    }
+
+    protected intents(): IntentHandlers<TodoIntents> {
+        return {
+            add: title => this.model.add(title),
+            toggle: id => this.model.toggle(id),
+            clearCompleted: () => this.model.clearCompleted(),
+        }
+    }
+
+    protected onStart(): void {
+        this.observe(this.model.state$, state => this.forEachView(view => this.render(view, state)))
+        this.guard('load', () => this.model.load())
+    }
+
+    /** Model 观察在 View 出现之前就注册了，新挂上的 View 要补一次当前状态 */
+    protected override onAttach(view: TodoPanel): void {
+        this.render(view, this.model.state)
+    }
+
+    protected override onError(error: unknown, context: string): void {
+        this.forEachView(view => view.showError?.(`${context} 失败：${messageOf(error)}`))
+    }
+
+    private render(view: TodoPanel, state: TodoState): void {
+        view.renderList?.(state.items, state.loading)
+        view.renderCount?.(state.items.filter(t => !t.done).length)
+    }
+}
+
+// ============================================================
 // 运行
 // ============================================================
 
@@ -350,9 +438,51 @@ async function runMvvm(): Promise<void> {
     vm.dispose()
 }
 
+async function runMultiView(): Promise<void> {
+    console.log('\n========== MVC：一个 Controller，多个 View ==========')
+    // 游戏启动时执行一次（Cocos 中放在常驻节点的启动组件里）
+    const model = new TodoModel(new InMemoryTodoRepository(['写周报', '修 Bug']))
+    const controller = new SharedTodoController(model)
+    controller.start()
+
+    // 界面组件各自 attach / detach（Cocos 中写在 onEnable / onDisable）
+    const badge = new ConsoleTodoBadge()
+    const list = new ConsoleTodoListPanel()
+
+    console.log('1. 主界面的角标先显示')
+    controller.attach(badge)
+    await settle()
+
+    console.log('2. 打开列表面板：attach 时立即显示当前数据，不重新注册 Model 观察')
+    controller.attach(list)
+
+    console.log('3. 在列表面板里操作：两个 View 都刷新')
+    list.submit('发版本')
+    await settle()
+    list.clickItem(1)
+
+    console.log('4. 在角标上操作：同一个 Controller 处理')
+    badge.clickClear()
+
+    console.log('5. 关闭列表面板后只剩角标刷新；重新打开也只是再 attach 一次')
+    controller.detach(list)
+    list.clickItem(2) // 已 detach，忽略
+    controller.attach(list)
+
+    console.log('6. 业务校验失败：错误显示在所有实现了 showError 的 View 上')
+    list.submit('修 Bug')
+    await settle()
+
+    // View 由界面自己销毁，Controller 不会销毁它们
+    controller.dispose()
+    list.dispose()
+    badge.dispose()
+}
+
 async function main(): Promise<void> {
     await runMvc()
     await runMvvm()
+    await runMultiView()
 }
 
 main().catch(error => console.error(error))

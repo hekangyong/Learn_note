@@ -11,7 +11,10 @@ import {
     DisposableStore,
     effect,
     Emitter,
+    IMvcView,
+    IntentHandlers,
     Model,
+    MultiController,
     MvcView,
     MvvmView,
     setErrorHandler,
@@ -406,6 +409,229 @@ async function main(): Promise<void> {
         assertEqual(view.rendered, [0, 1, 2])
         controller.dispose()
         assert(view.isDisposed, 'dispose 应同时销毁 View')
+    })
+
+    type CounterIntents = { inc: []; fail: [reason: string] }
+
+    class CounterPanel extends MvcView<CounterIntents> {
+        rendered: number[] = []
+        render(n: number) {
+            this.rendered.push(n)
+        }
+        click() {
+            this.emit('inc')
+        }
+        clickFail(reason: string) {
+            this.emit('fail', reason)
+        }
+    }
+
+    type CounterView = IMvcView<CounterIntents> & { render(n: number): void }
+
+    class SharedCounterController extends MultiController<CounterIntents, CounterView> {
+        errors: string[] = []
+        intentsCalls = 0
+        constructor(readonly model: CounterModel) {
+            super()
+        }
+        protected intents(): IntentHandlers<CounterIntents> {
+            this.intentsCalls++
+            return {
+                inc: () => this.model.inc(),
+                fail: async reason => {
+                    await tick()
+                    throw new Error(reason)
+                },
+            }
+        }
+        protected onStart() {
+            this.observe(this.model.state$, s => this.forEachView(v => v.render(s.count)))
+        }
+        protected override onAttach(view: CounterView) {
+            view.render(this.model.state.count)
+        }
+        protected override onError(error: unknown, context: string) {
+            this.errors.push(`${context}:${(error as Error).message}`)
+        }
+    }
+
+    await test('MultiController：多个 View 共用一次注册，attach 补当前状态', () => {
+        const model = new CounterModel()
+        const controller = new SharedCounterController(model)
+        const a = new CounterPanel()
+        const b = new CounterPanel()
+        controller.start()
+        controller.start() // 重复 start 不会重复观察
+        controller.attach(a)
+        controller.attach(a) // 重复 attach 不会重复接线
+        a.click()
+        controller.attach(b)
+        b.click()
+        assertEqual(a.rendered, [0, 1, 2])
+        assertEqual(b.rendered, [1, 2], 'attach 时立即显示当前状态')
+        assertEqual(model.state.count, 2, '每次点击只处理一次')
+        assertEqual(controller.intentsCalls, 1, '意图表只读取一次')
+        assertEqual(controller.viewCount, 2)
+        controller.dispose()
+    })
+
+    await test('MultiController：detach 后不再刷新也不再响应，可以再次 attach', () => {
+        const model = new CounterModel()
+        const controller = new SharedCounterController(model)
+        const a = new CounterPanel()
+        const b = new CounterPanel()
+        controller.start()
+        controller.attach(a)
+        controller.attach(b)
+        controller.detach(b)
+        assert(!b.isMounted, 'detach 应卸载 MvcView')
+        assert(!b.isDisposed, 'detach 不应销毁 View')
+        b.click() // 未挂载，忽略
+        model.inc() // 只刷新 a
+        assertEqual(a.rendered, [0, 1])
+        assertEqual(b.rendered, [0])
+        controller.attach(b)
+        b.click()
+        assertEqual(model.state.count, 2)
+        assertEqual(a.rendered, [0, 1, 2])
+        assertEqual(b.rendered, [0, 1, 2])
+        controller.dispose()
+    })
+
+    await test('MultiController：意图异常进入 onError，单个 View 刷新出错不影响其他 View', async () => {
+        const model = new CounterModel()
+        const controller = new SharedCounterController(model)
+        class BrokenPanel extends CounterPanel {
+            override render(_n: number): void {
+                throw new Error('broken')
+            }
+        }
+        const broken = new BrokenPanel()
+        const ok = new CounterPanel()
+        controller.start()
+        controller.attach(broken)
+        controller.attach(ok)
+        ok.clickFail('oops')
+        await tick()
+        await tick()
+        model.inc()
+        assertEqual(ok.rendered, [0, 1])
+        assertEqual(controller.errors, ['onAttach:broken', 'fail:oops', 'render:broken'])
+        controller.dispose()
+    })
+
+    await test('MultiController：start 之前可以 attach；dispose 卸载但不销毁 View', () => {
+        const model = new CounterModel()
+        const controller = new SharedCounterController(model)
+        const a = new CounterPanel()
+        controller.attach(a) // 例如 Cocos 组件的 onEnable 先于启动逻辑执行
+        a.click() // 意图已接线
+        assertEqual(a.rendered, [0], '未 start 时还没有观察 Model')
+        controller.start()
+        model.inc()
+        assertEqual(a.rendered, [0, 2])
+        controller.dispose()
+        assert(!a.isMounted && !a.isDisposed, 'dispose 只卸载 View')
+        assertEqual(controller.viewCount, 0)
+        model.inc()
+        assertEqual(a.rendered, [0, 2], 'dispose 后不再观察')
+        let threw = false
+        try {
+            controller.attach(a)
+        } catch {
+            threw = true
+        }
+        assert(threw, 'dispose 后 attach 应抛错')
+        a.dispose()
+    })
+
+    await test('MultiController：一个 View 挂在多个 Controller 上，各自处理自己的意图和 Model', () => {
+        type ProfileIntents = { rename: [name: string] }
+        class ProfileController extends MultiController<ProfileIntents, IMvcView<ProfileIntents> & { renderName(n: string): void }> {
+            constructor(readonly model: CounterModel) {
+                super()
+            }
+            protected intents(): IntentHandlers<ProfileIntents> {
+                return { rename: name => this.model.rename(name) }
+            }
+            protected onStart() {
+                this.observe(this.model.state$, s => this.forEachView(v => v.renderName(s.name)))
+            }
+            protected override onAttach(view: { renderName(n: string): void }) {
+                view.renderName(this.model.state.name)
+            }
+        }
+        /** 同时显示计数（CounterModel）和昵称（另一个 Model） */
+        class HudPanel extends MvcView<CounterIntents & ProfileIntents> {
+            rendered: number[] = []
+            names: string[] = []
+            render(n: number) {
+                this.rendered.push(n)
+            }
+            renderName(name: string) {
+                this.names.push(name)
+            }
+            click() {
+                this.emit('inc')
+            }
+            rename(name: string) {
+                this.emit('rename', name)
+            }
+        }
+        const counterModel = new CounterModel()
+        const profileModel = new CounterModel()
+        const counter = new SharedCounterController(counterModel)
+        const profile = new ProfileController(profileModel)
+        counter.start()
+        profile.start()
+        const hud = new HudPanel()
+        counter.attach(hud)
+        profile.attach(hud)
+        hud.click()
+        hud.rename('b')
+        assertEqual(counterModel.state.count, 1)
+        assertEqual(profileModel.state.name, 'b')
+        assertEqual(profileModel.state.count, 0, '意图只由声明了它的 Controller 处理')
+        assertEqual(hud.rendered, [0, 1])
+        assertEqual(hud.names, ['a', 'b'])
+        // 从一个 Controller detach 不能影响另一个
+        profile.detach(hud)
+        assert(hud.isMounted, '还挂在 counter 上，不应被卸载')
+        hud.click()
+        assertEqual(counterModel.state.count, 2)
+        counter.detach(hud)
+        assert(!hud.isMounted, '最后一个 Controller detach 后才卸载')
+        counter.dispose()
+        profile.dispose()
+        hud.dispose()
+    })
+
+    await test('MultiController：onStart 抛错时回滚，可以重新 start', () => {
+        const model = new CounterModel()
+        let fail = true
+        class C extends SharedCounterController {
+            protected override onStart() {
+                super.onStart()
+                if (fail) throw new Error('init')
+            }
+        }
+        const controller = new C(model)
+        const a = new CounterPanel()
+        controller.attach(a)
+        let threw = false
+        try {
+            controller.start()
+        } catch {
+            threw = true
+        }
+        assert(threw && !controller.isStarted, 'start 失败应回滚')
+        model.inc()
+        assertEqual(a.rendered, [0], '回滚后不应留下观察')
+        fail = false
+        controller.start()
+        model.inc()
+        assertEqual(a.rendered, [0, 2])
+        controller.dispose()
     })
 
     console.log('mvvm')
