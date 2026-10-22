@@ -3,7 +3,15 @@
  * simulate 开头的方法模拟服务器端发生的事情（打完一场战斗、跨天），会推送给客户端；可以接到调试按钮上。
  */
 import { Clock, nextResetAt } from '../../common/Clock'
-import { ClaimResult, DailyTaskApi, statusOf, Task, TaskKind, TaskPush, TaskSnapshot } from './DailyTaskModel'
+import {
+    ClaimResult,
+    DailyTaskApi,
+    statusOf,
+    Task,
+    TaskKind,
+    TaskPush,
+    TaskSnapshot,
+} from './DailyTaskModel'
 
 export type TaskDefinition = Omit<Task, 'progress' | 'claimed'>
 
@@ -46,7 +54,8 @@ export class MockDailyTaskApi implements DailyTaskApi {
         const claimed: number[] = []
         let coins = 0
         this.tasks = this.tasks.map(task => {
-            if (!taskIds.includes(task.id) || statusOf(task) !== 'claimable') return task
+            if (!taskIds.includes(task.id) || statusOf(task) !== 'claimable')
+                return task
             claimed.push(task.id)
             coins += task.reward
             return { ...task, claimed: true }
@@ -76,7 +85,10 @@ export class MockDailyTaskApi implements DailyTaskApi {
         const changed: Task[] = []
         this.tasks = this.tasks.map(task => {
             if (task.kind !== kind || task.progress >= task.target) return task
-            const next = { ...task, progress: Math.min(task.target, task.progress + count) }
+            const next = {
+                ...task,
+                progress: Math.min(task.target, task.progress + count),
+            }
             changed.push(next)
             return next
         })
@@ -84,7 +96,11 @@ export class MockDailyTaskApi implements DailyTaskApi {
     }
 
     private resetTasks(): void {
-        this.tasks = this.definitions.map(d => ({ ...d, progress: 0, claimed: false }))
+        this.tasks = this.definitions.map(d => ({
+            ...d,
+            progress: 0,
+            claimed: false,
+        }))
         this.resetAt = nextResetAt(this.clock.now())
     }
 

@@ -8,7 +8,16 @@
  *   - 状态底层是 signal：MVC 的 Controller 可以 observe 它手动刷新 View，
  *     MVVM 的 ViewModel 可以直接在 computed 中读取 model.state，依赖自动建立。
  */
-import { computed, Disposer, EqualityFn, ReadonlySignal, Signal, signal, SignalListener, SubscribeOptions } from '../core/reactive'
+import {
+    computed,
+    Disposer,
+    EqualityFn,
+    ReadonlySignal,
+    Signal,
+    signal,
+    SignalListener,
+    SubscribeOptions,
+} from '../core/reactive'
 
 export abstract class Model<S extends object> {
     private readonly store: Signal<S>
@@ -29,7 +38,9 @@ export abstract class Model<S extends object> {
      * 合并修改状态。所有字段都与当前值相同时什么都不做，返回 false。
      * @param patch 要修改的字段，或者根据当前状态计算修改的函数
      */
-    protected setState(patch: Partial<S> | ((state: S) => Partial<S>)): boolean {
+    protected setState(
+        patch: Partial<S> | ((state: S) => Partial<S>)
+    ): boolean {
         const prev = this.store.peek()
         const changes = typeof patch === 'function' ? patch(prev) : patch
         const keys = Object.keys(changes) as (keyof S)[]
@@ -42,7 +53,10 @@ export abstract class Model<S extends object> {
      * 选择状态的一部分。只有选择结果变化时才会通知，避免无关字段变化引起刷新。
      * 选择结果是新建的对象/数组时，传入 shallowEqual 作为 equals。
      */
-    select<R>(selector: (state: S) => R, equals?: EqualityFn<R>): ReadonlySignal<R> {
+    select<R>(
+        selector: (state: S) => R,
+        equals?: EqualityFn<R>
+    ): ReadonlySignal<R> {
         return computed(() => selector(this.state), { equals })
     }
 
@@ -52,6 +66,9 @@ export abstract class Model<S extends object> {
         listener: SignalListener<R>,
         options?: SubscribeOptions & { equals?: EqualityFn<R> }
     ): Disposer {
-        return this.select(selector, options?.equals).subscribe(listener, options)
+        return this.select(selector, options?.equals).subscribe(
+            listener,
+            options
+        )
     }
 }

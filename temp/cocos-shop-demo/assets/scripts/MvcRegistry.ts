@@ -2,6 +2,8 @@
  * 所有 Model 和 Controller 在这里创建，全项目只有这一处。组件只从这里导入单例。
  */
 import { systemClock } from './common/Clock'
+import { CardController } from './modules/card/CardController'
+import { CardModel, MockCardRepository } from './modules/card/CardModel'
 import { CoinController } from './modules/coin/CoinController'
 import { CoinModel } from './modules/coin/CoinModel'
 import { DailyTaskController } from './modules/dailyTask/DailyTaskController'
@@ -10,7 +12,7 @@ import { MockDailyTaskApi } from './modules/dailyTask/MockDailyTaskApi'
 import { ShopController } from './modules/shop/ShopController'
 import { MockShopRepository, ShopModel } from './modules/shop/ShopModel'
 
-// ---- 数据源（接口联调后换成 HttpShopRepository / HttpDailyTaskApi）----
+// ---- 数据源（接口联调后换成 HttpShopRepository / HttpDailyTaskApi / HttpCardRepository）----
 /** 导出是为了调试：可以在调试按钮里调用 simulateProgress / simulateDailyReset */
 export const dailyTaskApi = new MockDailyTaskApi(systemClock)
 
@@ -18,11 +20,13 @@ export const dailyTaskApi = new MockDailyTaskApi(systemClock)
 export const coinModel = new CoinModel(500)
 export const shopModel = new ShopModel(new MockShopRepository())
 export const dailyTaskModel = new DailyTaskModel(dailyTaskApi, coinModel)
+export const cardModel = new CardModel(new MockCardRepository())
 
 // ---- Controller ----
 export const coinController = new CoinController(coinModel)
 export const shopController = new ShopController(shopModel, coinModel)
 export const dailyTaskController = new DailyTaskController(dailyTaskModel, systemClock)
+export const cardController = new CardController(cardModel, coinModel)
 
 let booted = false
 
@@ -33,4 +37,5 @@ export function bootstrapMvc(): void {
     coinController.start()
     shopController.start()
     dailyTaskController.start()
+    cardController.start()
 }

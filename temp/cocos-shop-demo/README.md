@@ -1,6 +1,6 @@
-# 商城 + 日常任务示例（mvc-register 生成）
+# 商城 + 日常任务 + 卡牌示例（mvc-register 生成）
 
-用 `/mvc-register` 生成的 Cocos 3.x 业务模块。`modules/coin/` 是模拟「项目里原本就有」的金币模块，`modules/shop/` 和 `modules/dailyTask/` 是生成的模块。`MainHud` 同时挂在金币、商城、日常任务三个 Controller 上。
+用 `/mvc-register` 生成的 Cocos 3.x 业务模块。`modules/coin/` 是模拟「项目里原本就有」的金币模块，`modules/shop/`、`modules/dailyTask/` 和 `modules/card/` 是生成的模块。卡牌列表和卡牌详情两个界面共用一个 `CardController`，升级消耗金币。`MainHud` 同时挂在金币、商城、日常任务三个 Controller 上。
 
 ```
 assets/scripts/
@@ -12,7 +12,8 @@ assets/scripts/
 └── modules/
     ├── coin/             CoinModel、CoinController、MainHud（商城红点 + 任务红点）
     ├── shop/             ShopModel、ShopController、ShopPanel、ShopItemCell
-    └── dailyTask/        DailyTaskModel、MockDailyTaskApi、DailyTaskController、DailyTaskPanel、DailyTaskCell
+    ├── dailyTask/        DailyTaskModel、MockDailyTaskApi、DailyTaskController、DailyTaskPanel、DailyTaskCell
+    └── card/             CardModel、CardController、CardListPanel、CardDetailPanel、CardItemCell
 types-stub/cc.d.ts        cc 的类型桩，只用于没有编辑器时做类型检查
 ```
 
@@ -25,7 +26,10 @@ types-stub/cc.d.ts        cc 的类型桩，只用于没有编辑器时做类型
 5. 任务格子预制体：根节点挂 `DailyTaskCell`，绑定标题 / 进度 / 奖励 Label 和领取按钮，按钮点击事件绑到 `DailyTaskCell.onClickClaim`；
 6. 任务界面：挂 `DailyTaskPanel`，绑定 `itemPrefab`、`content`、加载中节点、倒计时 Label、一键领取按钮、提示 Label；一键领取绑到 `onClickClaimAll`，刷新绑到 `onClickRefresh`；
 7. 主界面：`MainHud` 绑定 `shopDot`、`taskDot`（红点子节点）和 `taskDotLabel`（可领取数量）；
-8. 接口联调后，把 `MvcRegistry.ts` 里的 `MockShopRepository` / `MockDailyTaskApi` 换成 `HttpShopRepository` / `HttpDailyTaskApi` 并实现它们。
+8. 卡牌格子预制体：根节点挂 `CardItemCell`，绑定名称 / 稀有度 / 等级 Label 和选中高亮子节点，格子按钮点击事件绑到 `CardItemCell.onClickCard`；
+9. 卡牌列表界面：挂 `CardListPanel`，绑定 `itemPrefab`、`content`、加载中节点、筛选 Label、提示 Label 和 `detailNode`（详情界面节点）；筛选按钮绑到 `onClickFilter`，CustomEventData 填 `N` / `R` / `SR` / `SSR`，「全部」留空；刷新绑到 `onClickRefresh`；
+10. 卡牌详情界面：挂 `CardDetailPanel`，绑定属性 Label、升级花费 Label、升级按钮和提示 Label；升级绑到 `onClickUpgrade`，关闭绑到 `onClickClose`；节点默认不激活；
+11. 接口联调后，把 `MvcRegistry.ts` 里的 `MockShopRepository` / `MockDailyTaskApi` / `MockCardRepository` 换成 `HttpShopRepository` / `HttpDailyTaskApi` / `HttpCardRepository` 并实现它们。
 
 联调前想看到任务进度变化，可以在调试按钮里调用 `dailyTaskApi.simulateProgress('battle')`、`dailyTaskApi.simulateDailyReset()`（`dailyTaskApi` 从 `MvcRegistry` 导出）。
 

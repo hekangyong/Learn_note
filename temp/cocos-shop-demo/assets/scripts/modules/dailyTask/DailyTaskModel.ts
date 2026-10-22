@@ -32,7 +32,9 @@ export interface TaskSnapshot {
 }
 
 /** 服务器推送：progress 部分任务进度变化；reset 跨天整份替换 */
-export type TaskPush = { type: 'progress'; tasks: readonly Task[] } | ({ type: 'reset' } & TaskSnapshot)
+export type TaskPush =
+    | { type: 'progress'; tasks: readonly Task[] }
+    | ({ type: 'reset' } & TaskSnapshot)
 
 export interface ClaimResult {
     /** 实际领取成功的任务 */
@@ -80,12 +82,24 @@ export class DailyTaskModel extends Model<DailyTaskState> {
         private readonly api: DailyTaskApi,
         private readonly coin: CoinModel
     ) {
-        super({ tasks: [], resetAt: 0, loaded: false, loading: false, claiming: false })
-        this.unsubscribe = api.subscribe(push => (push.type === 'reset' ? this.reset(push) : this.applyProgress(push.tasks)))
+        super({
+            tasks: [],
+            resetAt: 0,
+            loaded: false,
+            loading: false,
+            claiming: false,
+        })
+        this.unsubscribe = api.subscribe(push =>
+            push.type === 'reset'
+                ? this.reset(push)
+                : this.applyProgress(push.tasks)
+        )
     }
 
     claimableIds(): number[] {
-        return this.state.tasks.filter(t => statusOf(t) === 'claimable').map(t => t.id)
+        return this.state.tasks
+            .filter(t => statusOf(t) === 'claimable')
+            .map(t => t.id)
     }
 
     async load(): Promise<void> {
@@ -93,7 +107,8 @@ export class DailyTaskModel extends Model<DailyTaskState> {
         this.setState({ loading: true })
         try {
             const snapshot = await this.api.fetch()
-            if (seq === this.loadSeq) this.setState({ ...snapshot, loaded: true, loading: false })
+            if (seq === this.loadSeq)
+                this.setState({ ...snapshot, loaded: true, loading: false })
         } catch (error) {
             if (seq === this.loadSeq) this.setState({ loading: false })
             throw error
@@ -121,12 +136,18 @@ export class DailyTaskModel extends Model<DailyTaskState> {
     applyProgress(tasks: readonly Task[]): void {
         if (!this.state.loaded) return
         const updates = new Map(tasks.map(t => [t.id, t]))
-        this.setState(s => ({ tasks: s.tasks.map(t => updates.get(t.id) ?? t) }))
+        this.setState(s => ({
+            tasks: s.tasks.map(t => updates.get(t.id) ?? t),
+        }))
     }
 
     /** 跨天：整份替换 */
     reset(snapshot: TaskSnapshot): void {
-        this.setState({ tasks: snapshot.tasks, resetAt: snapshot.resetAt, loaded: true })
+        this.setState({
+            tasks: snapshot.tasks,
+            resetAt: snapshot.resetAt,
+            loaded: true,
+        })
     }
 
     /** 退出登录 / 切换账号时调用 */
@@ -144,7 +165,9 @@ export class DailyTaskModel extends Model<DailyTaskState> {
             // 任务状态和金币在同一批中修改：界面不会看到「已领取但金币没到账」的中间状态
             batch(() => {
                 this.setState(s => ({
-                    tasks: s.tasks.map(t => (claimed.has(t.id) ? { ...t, claimed: true } : t)),
+                    tasks: s.tasks.map(t =>
+                        claimed.has(t.id) ? { ...t, claimed: true } : t
+                    ),
                     claiming: false,
                 }))
                 if (result.coins > 0) this.coin.add(result.coins)
