@@ -13,6 +13,7 @@ import {
     Emitter,
     IMvcView,
     IntentHandlers,
+    isReadonlySignal,
     Model,
     MultiController,
     MvcView,
@@ -285,6 +286,175 @@ async function main(): Promise<void> {
         assert(shallowEqual({ a: 1 }, { a: 1 }), '对象')
         assert(!shallowEqual({ a: 1 }, { a: 2 }), '对象不等')
         assert(!shallowEqual([1], { 0: 1 }), '数组与对象')
+        assert(!shallowEqual(new Array(3), []), '稀疏数组：长度不同')
+        assert(!shallowEqual([1, , 3], [1, 2, 3]), '稀疏数组：空位与有值')
+        assert(shallowEqual([1, , 3], [1, undefined, 3]), '稀疏数组：空位按 undefined 处理')
+        assert(!shallowEqual(new Map([[1, 1]]), new Map()), 'Map 按引用比较')
+        assert(!shallowEqual(new Date(0), new Date(1)), 'Date 按引用比较')
+        assert(shallowEqual(Object.assign(Object.create(null), { a: 1 }), { a: 1 }), '无原型对象')
+    })
+
+    await test('isReadonlySignal：识别 signal、computed、只读视图，不识别鸭子类型', () => {
+        const s = signal(1)
+        assert(isReadonlySignal(s), 'signal')
+        assert(isReadonlySignal(s.asReadonly()), '只读视图')
+        assert(isReadonlySignal(computed(() => 1)), 'computed')
+        assert(!isReadonlySignal({ value: 1, peek: () => 1, subscribe: () => () => {} }), '鸭子类型')
+        assert(!isReadonlySignal(null) && !isReadonlySignal(1), '非对象')
+        assert(s.asReadonly() === s.asReadonly(), '只读视图复用同一实例')
+        assert(!('set' in s.asReadonly()), '只读视图不暴露写方法')
+    })
+
+    await test('未被观察的 computed：无关 signal 变化不重算，上游值不变也不重算', () => {
+        const a = signal(1)
+        const unrelated = signal(0)
+        let parityRuns = 0
+        const parity = computed(() => {
+            parityRuns++
+            return a.value % 2
+        })
+        let labelRuns = 0
+        const label = computed(() => {
+            labelRuns++
+            return parity.value === 0 ? 'even' : 'odd'
+        })
+        assertEqual(label.value, 'odd')
+        unrelated.value = 1
+        assertEqual(label.value, 'odd')
+        assertEqual([parityRuns, labelRuns], [1, 1], '无关 signal 变化')
+        a.value = 3
+        assertEqual(label.value, 'odd')
+        assertEqual([parityRuns, labelRuns], [2, 1], '上游重算但值没变，下游不重算')
+        a.value = 4
+        assertEqual(label.value, 'even')
+        assertEqual([parityRuns, labelRuns], [3, 2])
+    })
+
+    await test('computed 重新被观察时只在上游真的变化后补算', () => {
+        const a = signal(1)
+        const unrelated = signal(0)
+        let runs = 0
+        const c = computed(() => {
+            runs++
+            return a.value
+        })
+        const off1 = c.subscribe(() => {})
+        off1()
+        unrelated.value = 1
+        const seen: number[] = []
+        const off2 = c.subscribe(v => seen.push(v))
+        assertEqual(runs, 1, '无关变化不补算')
+        a.value = 2
+        off2()
+        assertEqual(seen, [2])
+        assertEqual(runs, 2)
+    })
+
+    await test('effect 边界：执行中 dispose 也会调用本次返回的清理函数', () => {
+        const s = signal(0)
+        const log: string[] = []
+        let off: () => void = () => {}
+        off = effect(() => {
+            const v = s.value
+            if (v === 1) off()
+            return () => log.push(`cleanup ${v}`)
+        })
+        s.value = 1
+        assertEqual(log, ['cleanup 0', 'cleanup 1'])
+        s.value = 2
+        off()
+        assertEqual(log, ['cleanup 0', 'cleanup 1'], '已释放：不再执行，重复 dispose 无副作用')
+    })
+
+    await test('effect 边界：清理函数或本体出错后仍能继续响应', () => {
+        const { errors, restore } = captureErrors()
+        try {
+            const s = signal(0)
+            const runs: number[] = []
+            const off = effect(() => {
+                const v = s.value
+                runs.push(v)
+                if (v === 2) throw new Error('run failed')
+                return () => {
+                    if (v === 0) throw new Error('cleanup failed')
+                }
+            })
+            s.value = 1 // 清理函数抛错
+            s.value = 2 // 本体抛错，依赖已经收集到 s
+            s.value = 3
+            off()
+            assertEqual(runs, [0, 1, 2, 3])
+            assertEqual(errors.map(String), ['Error: cleanup failed', 'Error: run failed'])
+        } finally {
+            restore()
+        }
+    })
+
+    await test('effect 边界：清理函数里读写状态不会建立依赖', () => {
+        const s = signal(0)
+        const other = signal(0)
+        let runs = 0
+        const off = effect(() => {
+            s.value
+            runs++
+            return () => {
+                other.value // 清理函数中读取，不应成为依赖
+                other.value = other.peek() + 1
+            }
+        })
+        s.value = 1
+        assertEqual(other.peek(), 1)
+        other.value = 10
+        assertEqual(runs, 2, 'other 不是依赖')
+        off()
+    })
+
+    await test('effect 边界：同一次 flush 中被其他 effect 释放的 effect 不再执行', () => {
+        const s = signal(0)
+        const seen: number[] = []
+        let offB: () => void = () => {}
+        const offA = effect(() => {
+            if (s.value === 1) offB()
+        })
+        offB = effect(() => void seen.push(s.value))
+        s.value = 1
+        assertEqual(seen, [0])
+        offA()
+    })
+
+    await test('死循环：只停掉出问题的 effect，同队列其他 effect 照常执行，之后能恢复', () => {
+        const { errors, restore } = captureErrors()
+        try {
+            const trigger = signal(0)
+            const looping = signal(true)
+            const counter = signal(0)
+            let loopRuns = 0
+            const offLoop = effect(() => {
+                trigger.value
+                counter.value
+                loopRuns++
+                if (looping.peek()) counter.value = counter.peek() + 1
+            })
+            const seen: number[] = []
+            const offHealthy = effect(() => void seen.push(trigger.value))
+            loopRuns = 0
+            errors.length = 0
+            trigger.value = 1
+            assertEqual(errors.length, 1, '只上报一次')
+            assert(String(errors[0]).includes('infinite loop'), '应检测到死循环')
+            assert(loopRuns <= 101, `应在约 100 次内打断，实际 ${loopRuns}`)
+            assertEqual(seen, [0, 1], '其他 effect 正常执行')
+
+            looping.value = false
+            loopRuns = 0
+            trigger.value = 2
+            assertEqual(loopRuns, 1, '出问题的 effect 之后仍能响应')
+            assertEqual(seen, [0, 1, 2])
+            offLoop()
+            offHealthy()
+        } finally {
+            restore()
+        }
     })
 
     console.log('core')

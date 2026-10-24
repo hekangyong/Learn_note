@@ -41,7 +41,12 @@ export class DisposableStore implements IDisposable {
     add<T extends DisposableLike>(item: T): T {
         if (this.disposed) {
             disposeSafely(item)
-            reportError(new Error('Resource added to a disposed DisposableStore; it was disposed immediately'), 'DisposableStore')
+            reportError(
+                new Error(
+                    'Resource added to a disposed DisposableStore; it was disposed immediately'
+                ),
+                'DisposableStore'
+            )
             return item
         }
         this.items.push(item)

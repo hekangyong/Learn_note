@@ -218,10 +218,10 @@ vm.dispose()      // 由创建 ViewModel 的一方负责
 | --- | --- |
 | 自动依赖收集 | `computed` / `effect` 里读到什么就依赖什么，包括条件分支里的动态依赖 |
 | 无毛刺 | 菱形依赖 `a → b, c → d` 修改 `a` 时 `d` 只计算一次，不会读到中间状态 |
-| 惰性 + 缓存 | `computed` 被读取时才计算，依赖没变就用缓存 |
+| 惰性 + 缓存 | `computed` 被读取时才计算，依赖没变就用缓存；没人订阅时按上游版本号判断，无关 signal 变化不会触发重算 |
 | 不泄漏 | 没有被 effect 使用的 `computed` 自动从上游脱离，不需要手动 dispose |
 | 批量更新 | `batch(() => { a.value = 1; b.value = 2 })` 只触发一次 effect |
-| 安全 | 循环依赖抛错；在 computed 里修改 signal 抛错；effect 死循环超过 10 万次会被打断并上报 |
+| 安全 | 循环依赖抛错；在 computed 里修改 signal 抛错；同一个 effect 在一次刷新中执行超过 100 次视为死循环：只停掉它并上报，其他 effect 照常执行，它自己在依赖下次变化时恢复 |
 | 错误隔离 | 单个 effect / 监听器出错只上报，不影响其他 |
 
 算法是推拉结合的三色标记（CLEAN / CHECK / DIRTY），思路与 Preact Signals、Reactively 相同。
